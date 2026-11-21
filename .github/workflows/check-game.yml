@@ -1,0 +1,23 @@
+name: Check game
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  campaign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check campaign and targeting
+        run: node --test tests/*.test.cjs
+      - name: Prepare the test browser
+        run: |
+          npm install --prefix "$RUNNER_TEMP/signal-browser" --no-audit --no-fund playwright@1.56.1
+          node "$RUNNER_TEMP/signal-browser/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Play the campaign and verify touch controls
+        run: NODE_PATH="$RUNNER_TEMP/signal-browser/node_modules" node --test tests/campaign-browser.cjs

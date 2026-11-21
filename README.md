@@ -9,7 +9,7 @@ Open `index.html` in a modern browser. The game works from a downloaded checkout
 - Tap or click a red diamond or its marked actor to fire. Drag the scene to pan. The **Find** control brings the next signal into view.
 - Use **Lens** to magnify the scene and **Reload** to refill the cartridge. Civilian contacts block the shot and break the chain.
 - Keyboard controls include arrows or WASD to move the sight, Space to fire, F to find a signal, Z for the lens, R to reload and Escape to pause. In drone view the movement keys fly the camera.
-- Earn credits for contracts, precision, clean crowds, chains and first clears. Clearing all three contracts in a district pays a one-time cache. Spend credits on the projector, lens, cartridge and pulse rounds in the armory.
+- Earn credits for contracts, precision, clean crowds, chains and first clears. From contract two onward, a two-hit chain opens an eight-second gold relay. Tap it for a refill and 80 bonus credits on a successful clear. Clearing all three contracts in a district pays a one-time cache. Spend credits on the projector, lens, cartridge and pulse rounds in the armory.
 - Campaign records, equipped upgrades, credits and sound preference are stored in the current browser. If storage is unavailable, play continues for the session.
 
 ## Development
@@ -17,3 +17,7 @@ Open `index.html` in a modern browser. The game works from a downloaded checkout
 The game uses HTML, CSS, JavaScript and Canvas 2D. Original city plates, transparent characters and equipment artwork ship as WebP. Barlow and Barlow Condensed ship locally under the SIL Open Font License in `assets/fonts`.
 
 Run `node --test tests/*.test.cjs` for campaign, economy and targeting checks.
+
+For a single offline file, run `node tools/build-offline.cjs Rooftop-Sniper.html`, then open the resulting HTML in a browser. It includes the entire campaign and artwork.
+
+The optional browser test runs all nine contracts on desktop Chromium and checks touch interactions at a phone viewport. With Playwright and its Chromium installed, run `node --test tests/campaign-browser.cjs`. Set `BROWSER_PATH` to use an existing Chromium executable.
