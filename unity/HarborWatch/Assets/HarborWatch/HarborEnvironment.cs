@@ -217,11 +217,14 @@ namespace HarborWatch
             clock += Mathf.Clamp(elapsed, 0f, .075f);
             float x = FerryLocalX(clock);
             ferry.localPosition = new Vector3(x,
-                -.13f + Mathf.Sin(clock * 1.35f) * .027f, -9.40f);
+                -.13f + Mathf.Sin(clock * 1.35f) * .027f, -9.0f);
             float t = Mathf.Repeat(clock, FerryPeriodSeconds);
-            bool sailing = (t >= 12f && t < 29f) || (t >= 34f && t < 52f);
-            wake.gameObject.SetActive(sailing);
-            wake.localPosition = new Vector3(x - 2.3f, -.196f, -9.4f);
+            bool departing = t >= 12f && t < 29f;
+            bool returning = t >= 34f && t < 52f;
+            wake.gameObject.SetActive(departing || returning);
+            // The wake always trails the actual direction of travel.
+            wake.localPosition = new Vector3(x + (departing ? 2.3f : -2.3f),
+                -.196f, -9.0f);
             for (int i = 0; i < ripples.Count; i++)
                 ripples[i].localPosition = rippleStarts[i] +
                     new Vector3(Mathf.Sin(clock * .52f + i) * .36f, 0f, 0f);
