@@ -2,12 +2,26 @@
 
 ## Current milestones
 
-The Unity 6000.3.28f1 project is in [unity/HarborWatch](../unity/HarborWatch) on the `unity/harbor-watch` branch.
+Unity Editor **6000.3.28f1** project root: `unity/HarborWatch`.
+The [Phase-2 feature branch](https://github.com/medh-eng/rooftop-snipper/tree/chatgpt/harbor-crowd-phase2)
+contains the latest crowd scene. The original `unity/harbor-watch` branch
+remains the PR base until acceptance.
 
-**Phase 1:** [WalkReview.unity](../unity/HarborWatch/Assets/Scenes/WalkReview.unity) includes the original 14-bone commuter, a baked planted-foot gait and [source-animation preview](harbor-watch/PHASE_1.md). Blender re-import was checked; Unity Editor playback and the Android device test are still pending.
+**Phase 1:** `Assets/Scenes/WalkReview.unity` has the original rigged walker
+and smooth, rounded-turn animation. The user has approved the improved turns
+visually in Unity. Android verification remains pending.
 
-**Phase 2 review candidate:** a separate [HarborCrowd.unity](../unity/HarborWatch/Assets/Scenes/HarborCrowd.unity) scene samples six variations of that gait in a blockout of Port Meridian with rooftop, overhead and follow cameras. See the [crowd review procedure](harbor-watch/PHASE_2.md). This is an implementation preview, not proof of individual pathfinding or device performance.
+**Phase 2:** `Assets/Scenes/HarborCrowd.unity` is a separate harbor preview
+scene with dynamic street/terminal/ferry arrivals and departures, walkers and
+joggers, variable clothing and optional hats/bags. The authored animation
+exports and static route checks can be automated, but Unity playback of the
+latest dynamic traffic remains for review. See
+[traffic instructions](harbor-watch/CONTINUOUS_TRAFFIC.md).
 
-To test, pull the latest feature branch, open `unity/HarborWatch` from Unity Hub, then open `Assets/Scenes/HarborCrowd.unity`. Press Play and inspect the six pedestrians. For the initial build scene, `WalkReview.unity` remains first.
+To review: stop Unity Play, pull the latest feature branch in GitHub Desktop,
+open `unity/HarborWatch` in Unity Hub, load `Assets/Scenes/HarborCrowd.unity`,
+then press Play **in Game view** and watch for 30–40 seconds. Follow a walker
+into/out of an entrance and inspect a jogger at close range.
 
-[Full development plan](UNITY_HARBOR_WATCH_PLAN.md) · [Project handoff](UNITY_PROJECT_HANDOFF.md)
+[Development plan](UNITY_HARBOR_WATCH_PLAN.md) ·
+[Unity handoff](UNITY_PROJECT_HANDOFF.md)
