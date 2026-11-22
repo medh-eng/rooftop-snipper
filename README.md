@@ -25,3 +25,28 @@ The optional browser test runs all nine contracts on desktop Chromium and checks
 ## Unity Android prototype
 
 The [Harbor Watch Unity plan](docs/UNITY_HARBOR_WATCH_PLAN.md) covers opening the project on your PC, testing the first pedestrian's walk, and the tasks for you and ChatGPT in each phase.
+
+
+### Phase 3: playable Unity signal survey (feature branch)
+
+The Unity project is at `unity/HarborWatch`; select Editor **6000.3.28f1**.
+On `chatgpt/harbor-phase3-mission`, the **first Android build scene** is
+`Assets/Scenes/HarborMission.unity`. It uses the same procedural Port Meridian
+concourse and pedestrian crowd as the optional review scene.
+
+The playable first mission is **non-violent**: pan/zoom the rooftop camera,
+centre three fictional red signal devices, tap **SCAN**, and clear the
+90-second survey. Pause, restart, timeout, rewards and a local save are
+implemented in source. A perfect first clear awards **576 credits** and grows
+a fresh **350-credit** wallet to **926**. None of the pedestrians is a target.
+
+**Unity menus:** `Harbor Watch → Verify Phase 3 Mission`, then switch to
+Android in Build Profiles and choose `Harbor Watch → Build Android
+Development APK` to compile on your PC. The APK requires the installed Unity
+Android Build Support modules and has **not** been generated or device-tested
+by GitHub Actions. See [Phase 3 verification](docs/harbor-watch/PHASE_3_MISSION.md).
+
+The approved crowd scene (`HarborCrowd.unity`) and walk review
+(`WalkReview.unity`) remain in the project. Phase 3 is isolated in
+[PR #2](https://github.com/medh-eng/rooftop-snipper/pull/2), based on the
+unmerged [Phase 2 PR #1](https://github.com/medh-eng/rooftop-snipper/pull/1).
