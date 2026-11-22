@@ -1,10 +1,11 @@
-name: Rebuild Harbor Watch walker
+name: Rebuild Harbor Watch commuter gaits
 on:
   push:
     branches:
       - chatgpt/harbor-crowd-phase2
     paths:
       - tools/harbor-watch/author_walker.py
+      - tools/harbor-watch/author_commuter_gaits.py
       - .github/workflows/rebuild-harbor-walker.yml
 
 permissions:
@@ -18,38 +19,28 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: true
-      - name: Install Blender and its NumPy exporter dependency
+      - name: Install Blender and NumPy
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y blender python3-numpy
-      - name: Verify Blender can export FBX
-        run: |
-          blender --background --python-exit-code 1 --python-expr "import numpy, sys; print('Blender Python', sys.version, 'NumPy', numpy.__version__)"
-      - name: Regenerate original redistributable FBX
+      - name: Build original walk and two in-place crowd cycles
         shell: bash
         run: |
           set -euo pipefail
-          output="unity/HarborWatch/Assets/HarborWatch/Resources/HarborWalker.fbx"
-          rm -f "$output"
-          blender --background --python-exit-code 1 --python tools/harbor-watch/author_walker.py
-          test -s "$output"
-      - name: Check changed FBX into the feature branch
+          blender --background --python-exit-code 1 --python tools/harbor-watch/author_commuter_gaits.py
+          for name in HarborWalker CrowdWalk CrowdJog; do
+            test -s "unity/HarborWatch/Assets/HarborWatch/Resources/${name}.fbx"
+          done
+      - name: Commit generated FBX files back to feature branch
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add unity/HarborWatch/Assets/HarborWatch/Resources/HarborWalker.fbx
+          git add unity/HarborWatch/Assets/HarborWatch/Resources/{HarborWalker,CrowdWalk,CrowdJog}.fbx
           if git diff --cached --quiet; then
-            echo 'FBX is unchanged'
+            echo 'All exported FBX files are unchanged'
           else
-            git commit -m "Bake smoother three-step curved turns into HarborWalker FBX"
+            git commit -m "Bake walking and jogging pedestrian cycle assets"
             git push origin HEAD:chatgpt/harbor-crowd-phase2
           fi
-      - name: Upload FBX build artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: HarborWalker-three-step-curves
-          path: unity/HarborWatch/Assets/HarborWatch/Resources/HarborWalker.fbx
-          if-no-files-found: ignore
