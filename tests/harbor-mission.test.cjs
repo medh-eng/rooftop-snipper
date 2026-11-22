@@ -46,7 +46,7 @@ test('mission uses a separate valid scene but preserves the old crowd review', (
   assert.match(review, /public bool missionMode/);
   assert.match(review, /AddComponent<HarborMissionController>\(\)/);
   assert.match(review, /mission && mission\.IsRunning/);
-  assert.match(review, /if \(missionMode && error == null\) return;/);
+  assert.match(review, /if \(\(missionMode \|\| droneMode\) && error == null\) return;/);
   const scenes = [...build.matchAll(/path: (Assets\/Scenes\/[^\n]+)/g)].map(x=>x[1]);
   assert.deepEqual(scenes.slice(0,3),
     ['Assets/Scenes/HarborMission.unity',
