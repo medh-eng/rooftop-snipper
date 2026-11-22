@@ -122,6 +122,8 @@ test('two finger input, pause, vertical movement and nonviolent drone identifica
   assert.match(controller,/public bool IsPlaying \{ get \{ return !paused; \} \}/);
   assert.match(controller,/float dt = Mathf\.Min\(Time\.deltaTime, \.05f\)/);
   assert.match(controller,/Physics\.Raycast\(cameraView\.transform\.position/);
+  assert.match(controller,/HasLineOfSight\(beacon\.transform\.position\)/);
+  assert.match(controller,/float messageY = ButtonArea\(8\)\.yMax \+ 7f/);
   assert.match(controller,/identified = true/);
   assert.match(controller,/No contact or damage/);
   assert.doesNotMatch(controller,/Fire\(|Shoot\(|Instantiate\(\s*projectile|Damage\(/);
