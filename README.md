@@ -50,3 +50,26 @@ The approved crowd scene (`HarborCrowd.unity`) and walk review
 (`WalkReview.unity`) remain in the project. Phase 3 is isolated in
 [PR #2](https://github.com/medh-eng/rooftop-snipper/pull/2), based on the
 unmerged [Phase 2 PR #1](https://github.com/medh-eng/rooftop-snipper/pull/1).
+
+
+### Phase 4: standalone drone-camera proof (feature branch)
+
+Open `Assets/Scenes/HarborDrone.unity` in the existing Unity
+`unity/HarborWatch` project (**Unity 6000.3.28f1**). The aerial observer
+can fly over and around Port Meridian, return to the rooftop viewpoint
+and inspect the **same moving pedestrian crowd**. Use a left thumb
+stick to fly, drag on the right to look, hold UP/DOWN to change altitude,
+and identify the harmless fictional aerial signal. WASD, Q/E and arrows
+are available for Editor testing.
+
+Phase 4 adds **Harbor Watch → Verify Phase 4 Drone** and
+**Harbor Watch → Build Drone Review APK**. The latter builds only this
+review scene as an Android development APK, without replacing the first
+scene of the normal mission. See
+[Phase 4 setup and device checks](docs/harbor-watch/PHASE_4_DRONE.md).
+
+This feature is in
+[Phase 4 PR #3](https://github.com/medh-eng/rooftop-snipper/pull/3);
+its earlier dependencies are Phase 2 PR #1 and Phase 3 PR #2.
+The Unity camera must still be visually checked and the APK must be
+compiled and profiled on the intended Android phone.
