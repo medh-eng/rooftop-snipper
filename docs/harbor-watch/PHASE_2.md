@@ -1,3 +1,5 @@
+> **Natural turn refinement:** User review found the original five-step pivot robotic. See [THREE_STEP_CURVES.md](THREE_STEP_CURVES.md) for the rounded three-step revision, FBX rebuild and retest.
+
 # Harbor Watch — Phase 2 crowd preview
 
 ## Scene and setup

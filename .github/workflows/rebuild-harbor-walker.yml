@@ -1,0 +1,48 @@
+name: Rebuild Harbor Watch walker
+on:
+  push:
+    branches:
+      - chatgpt/harbor-crowd-phase2
+    paths:
+      - tools/harbor-watch/author_walker.py
+      - .github/workflows/rebuild-harbor-walker.yml
+
+permissions:
+  contents: write
+
+jobs:
+  blender-walk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Install Blender
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y blender
+      - name: Regenerate original redistributable FBX
+        run: |
+          blender --background --python tools/harbor-watch/author_walker.py
+          test -s unity/HarborWatch/Assets/HarborWatch/Resources/HarborWalker.fbx
+      - name: Check changed FBX into the feature branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add unity/HarborWatch/Assets/HarborWatch/Resources/HarborWalker.fbx
+          if git diff --cached --quiet; then
+            echo 'FBX is unchanged'
+          else
+            git commit -m "Bake smoother three-step curved turns into HarborWalker FBX"
+            git push origin HEAD:chatgpt/harbor-crowd-phase2
+          fi
+      - name: Upload FBX build artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HarborWalker-three-step-curves
+          path: unity/HarborWatch/Assets/HarborWatch/Resources/HarborWalker.fbx
+          if-no-files-found: ignore
