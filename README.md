@@ -85,3 +85,14 @@ technical architecture, Android performance gates and acceptance criteria.
 This is a **production plan**, not a claim that expansion features are built.
 The next coding priority remains validating the current Unity feature stack
 on a real Android handset before large-scale art/content expansion.
+
+### Phase 5A: Living Port Meridian harbor (feature branch)
+
+The shared Unity concourse now has a **decorative animated ferry**, harbor
+water glints, seabirds, crane/cargo and terminal/quay detailing in the
+[Phase 5A living harbor work](docs/harbor-watch/PHASE_5_LIVING_HARBOR.md).
+This is a source-only visual slice in [draft PR #4](https://github.com/medh-eng/rooftop-snipper/pull/4),
+stacked after Phase 4 PR #3. Existing pedestrian routes, mission and drone
+controllers remain in place. Test in Unity 6000.3.28f1 with
+**Harbor Watch → Verify Phase 5 Living Harbor**, then review portrait Android
+performance; neither visual validation nor a finished APK is claimed yet.

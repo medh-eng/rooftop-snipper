@@ -26,6 +26,7 @@ namespace HarborWatch
         Material sourceMaterial;
         Texture2D pavingTexture;
         HarborCrowdTraffic stream;
+        HarborEnvironment environment;
         int view; // 0 rooftop, 1 overhead, 2 follow
         int followIndex = -1;
         bool slow;
@@ -46,6 +47,8 @@ namespace HarborWatch
             }
             world = new GameObject("Port Meridian - Concourse Review");
             BuildConcourse();
+            environment = world.AddComponent<HarborEnvironment>();
+            environment.Initialise(world.transform, sourceMaterial);
             stream = gameObject.AddComponent<HarborCrowdTraffic>();
             if (!stream.Initialize(world.transform, sourceMaterial))
             {
@@ -228,12 +231,20 @@ namespace HarborWatch
             if (error != null || !stream) return;
             if (missionMode)
             {
-                if (mission && mission.IsRunning) stream.Step(Time.deltaTime);
+                if (mission && mission.IsRunning)
+                {
+                    stream.Step(Time.deltaTime);
+                    environment.Step(Time.deltaTime);
+                }
                 return; // Camera, input and UI belong to HarborMissionController.
             }
             if (droneMode)
             {
-                if (droneReview && droneReview.IsPlaying) stream.Step(Time.deltaTime);
+                if (droneReview && droneReview.IsPlaying)
+                {
+                    stream.Step(Time.deltaTime);
+                    environment.Step(Time.deltaTime);
+                }
                 return; // Phase 4 owns its camera, controls, and aerial UI.
             }
             var touch = Touchscreen.current;
@@ -248,7 +259,12 @@ namespace HarborWatch
                     if (Control(i).Contains(pointer)) { Activate(i); break; }
             }
 
-            if (!paused) stream.Step(Time.deltaTime * (slow ? .25f : 1f));
+            if (!paused)
+            {
+                float seconds = Time.deltaTime * (slow ? .25f : 1f);
+                stream.Step(seconds);
+                environment.Step(seconds);
+            }
             PositionCamera();
         }
 
