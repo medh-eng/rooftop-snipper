@@ -18,14 +18,21 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: true
-      - name: Install Blender
+      - name: Install Blender and its NumPy exporter dependency
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y blender
-      - name: Regenerate original redistributable FBX
+          sudo apt-get install -y blender python3-numpy
+      - name: Verify Blender can export FBX
         run: |
-          blender --background --python tools/harbor-watch/author_walker.py
-          test -s unity/HarborWatch/Assets/HarborWatch/Resources/HarborWalker.fbx
+          blender --background --python-exit-code 1 --python-expr "import numpy, sys; print('Blender Python', sys.version, 'NumPy', numpy.__version__)"
+      - name: Regenerate original redistributable FBX
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="unity/HarborWatch/Assets/HarborWatch/Resources/HarborWalker.fbx"
+          rm -f "$output"
+          blender --background --python-exit-code 1 --python tools/harbor-watch/author_walker.py
+          test -s "$output"
       - name: Check changed FBX into the feature branch
         shell: bash
         run: |
