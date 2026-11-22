@@ -15,9 +15,11 @@ namespace HarborWatch
         // Keep the approved Crowd scene untouched. The duplicate Mission scene
         // sets this flag; it reuses the same concourse/crowd without review UI.
         public bool missionMode;
+        public bool droneMode; // Only set in the separate Phase 4 review scene.
         public Transform ConcourseRoot { get { return world ? world.transform : null; } }
         public HarborCrowdTraffic Traffic { get { return stream; } }
         HarborMissionController mission;
+        HarborDroneReview droneReview;
         readonly List<Material> allocatedMaterials = new List<Material>();
         Camera crowdCamera;
         GameObject world;
@@ -52,6 +54,7 @@ namespace HarborWatch
             }
             PositionCamera();
             if (missionMode) mission = gameObject.AddComponent<HarborMissionController>();
+            else if (droneMode) droneReview = gameObject.AddComponent<HarborDroneReview>();
         }
 
         void Fail(string message)
@@ -228,6 +231,11 @@ namespace HarborWatch
                 if (mission && mission.IsRunning) stream.Step(Time.deltaTime);
                 return; // Camera, input and UI belong to HarborMissionController.
             }
+            if (droneMode)
+            {
+                if (droneReview && droneReview.IsPlaying) stream.Step(Time.deltaTime);
+                return; // Phase 4 owns its camera, controls, and aerial UI.
+            }
             var touch = Touchscreen.current;
             var mouse = Mouse.current;
             bool tapped = touch != null && touch.primaryTouch.press.wasPressedThisFrame;
@@ -246,7 +254,7 @@ namespace HarborWatch
 
         void OnGUI()
         {
-            if (missionMode && error == null) return;
+            if ((missionMode || droneMode) && error == null) return;
             if (error != null)
             {
                 GUI.Box(new Rect(8, 8, Screen.width - 16, 72), error);
