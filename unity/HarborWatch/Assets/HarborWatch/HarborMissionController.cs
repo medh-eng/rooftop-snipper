@@ -16,6 +16,7 @@ namespace HarborWatch
         const string SaveCredits = "HarborWatch.SignalSurvey.Credits.v1";
         const string SaveCleared = "HarborWatch.SignalSurvey.Cleared.v1";
         const string SaveBestStars = "HarborWatch.SignalSurvey.BestStars.v1";
+        const string SaveAlbum = "HarborWatch.PortMeridian.PhotoAlbum.v1";
         const float MinimumFov = 24f;
         const float MaximumFov = 62f;
         const float ScanScreenRadius = .11f;
@@ -43,7 +44,8 @@ namespace HarborWatch
         float lastPinchGap = -1f;
         int cleared, attempts, chain, bestChain;
         readonly HarborRelayDecode decode = new HarborRelayDecode();
-        bool decoding;
+        readonly HarborLandmarkAlbum album = new HarborLandmarkAlbum();
+        bool decoding, photoMode;
         string decodeHint;
         int credits;
         float feedbackLeft;
@@ -54,7 +56,9 @@ namespace HarborWatch
         string message = "Drag to look. Centre a signal and press SCAN.";
         HarborMissionRules.Payout reward;
 
-        public bool IsRunning { get { return !paused && !finished; } }
+        // The world keeps moving while the player photographs static landmarks
+        // after a win. The 90-second survey timer does not resume.
+        public bool IsRunning { get { return !paused && (!finished || photoMode); } }
 
         void Start()
         {
@@ -81,6 +85,7 @@ namespace HarborWatch
 
             credits = Mathf.Clamp(PlayerPrefs.GetInt(
                 SaveCredits, HarborMissionRules.StartingCredits), 0, 9999999);
+            album.Load(PlayerPrefs.GetInt(SaveAlbum, 0));
             BuildSignals();
             RestartMission();
         }
@@ -139,6 +144,7 @@ namespace HarborWatch
         {
             decode.Reset();
             decoding = false;
+            photoMode = false;
             decodeHint = "Enter the newest relay first.";
             feedbackLeft = 0f;
             cleared = attempts = chain = bestChain = 0;
@@ -200,6 +206,31 @@ namespace HarborWatch
             for (int i = 0; i < 5; i++)
             {
                 if (!ButtonArea(i).Contains(position)) continue;
+                if (finished && won && i == 3)
+                {
+                    photoMode = !photoMode;
+                    dragging = false;
+                    lastPinchGap = -1f;
+                    feedbackLeft = 0f;
+                    message = photoMode
+                        ? (album.Complete ? "All three Port Meridian landmarks are saved."
+                            : "Frame the " + album.CurrentTitle + " and press CAPTURE.")
+                        : "Survey complete. Decode the relay or browse the album.";
+                    return true;
+                }
+                if (photoMode)
+                {
+                    switch (i)
+                    {
+                        case 0: CapturePhoto(); break;
+                        case 1: lens.fieldOfView = Mathf.Clamp(
+                            lens.fieldOfView + 5f, MinimumFov, MaximumFov); break;
+                        case 2: lens.fieldOfView = Mathf.Clamp(
+                            lens.fieldOfView - 5f, MinimumFov, MaximumFov); break;
+                        case 4: RestartMission(); break;
+                    }
+                    return true;
+                }
                 if (finished && won && i < 3)
                 {
                     if (!decoding && i == 0) decoding = true;
@@ -251,7 +282,7 @@ namespace HarborWatch
                 Vector2 first = touch.touches[0].position.ReadValue();
                 Vector2 second = touch.touches[1].position.ReadValue();
                 float gap = Vector2.Distance(first, second);
-                if (lastPinchGap > 0f && !paused && !finished)
+                if (lastPinchGap > 0f && !paused && (!finished || photoMode))
                     lens.fieldOfView = Mathf.Clamp(lens.fieldOfView -
                         (gap - lastPinchGap) * .035f, MinimumFov, MaximumFov);
                 lastPinchGap = gap;
@@ -270,7 +301,7 @@ namespace HarborWatch
 
             if (down)
             {
-                dragging = !OnControl(guiPointer) && !paused && !finished;
+                dragging = !OnControl(guiPointer) && !paused && (!finished || photoMode);
                 previousPointer = pointer;
                 return;
             }
@@ -326,6 +357,33 @@ namespace HarborWatch
             if (cleared == HarborMissionRules.RequiredSignals) FinishMission(true);
         }
 
+        void CapturePhoto()
+        {
+            if (!photoMode || !won) return;
+            if (album.Complete)
+            {
+                message = "Album complete. Tap BACK or RESTART.";
+                return;
+            }
+            string title = album.CurrentTitle;
+            Vector3 viewport = lens.WorldToViewportPoint(album.CurrentWorldPosition);
+            bool captured = album.TryCapture(viewport, lens.aspect, lens.fieldOfView);
+            lastScanMatched = captured;
+            feedbackLeft = .65f;
+            if (!captured)
+            {
+                message = "Centre " + title + " and zoom to 48 degrees or closer.";
+                return;
+            }
+
+            // The album is a collectible record, not an extra credit source.
+            // Its bitmask survives both restarting the survey and reopening.
+            PlayerPrefs.SetInt(SaveAlbum, album.Mask);
+            PlayerPrefs.Save();
+            message = album.Complete ? "Port Meridian album complete: 3/3 photos saved."
+                : title + " saved! Next: " + album.CurrentTitle + ".";
+        }
+
         void FinishMission(bool success)
         {
             finished = true;
@@ -356,8 +414,11 @@ namespace HarborWatch
             if (IsRunning)
             {
                 feedbackLeft = Mathf.Max(0f, feedbackLeft - Time.deltaTime);
-                secondsLeft = Mathf.Max(0f, secondsLeft - Time.deltaTime);
-                if (secondsLeft <= 0f) FinishMission(false);
+                if (!finished)
+                {
+                    secondsLeft = Mathf.Max(0f, secondsLeft - Time.deltaTime);
+                    if (secondsLeft <= 0f) FinishMission(false);
+                }
             }
         }
 
@@ -381,20 +442,22 @@ namespace HarborWatch
             };
             GUI.Box(new Rect(safe.xMin + margin, top,
                 safe.width - 2f * margin, 67f),
-                "HARBOR WATCH  |  SIGNAL SURVEY\n" +
-                "Time " + Mathf.CeilToInt(secondsLeft) +
-                "s    Signals " + cleared + "/3    Credits " + credits, header);
+                "HARBOR WATCH  |  " + (photoMode ? "PHOTO ALBUM" : "SIGNAL SURVEY") + "\n" +
+                (photoMode ? "Photos " + album.CapturedCount + "/3    Credits " + credits :
+                    "Time " + Mathf.CeilToInt(secondsLeft) +
+                    "s    Signals " + cleared + "/3    Credits " + credits), header);
 
             string[] labels = {
                 "SCAN", "ZOOM -", "ZOOM +", paused ? "RESUME" : "PAUSE", "RESTART"
             };
             if (finished && won)
             {
-                labels[0] = decoding ? "RELAY 3" : "DECODE";
-                labels[1] = decoding ? "RELAY 1" : "";
-                labels[2] = decoding ? "RELAY 2" : "";
-                labels[3] = "";
-                if (decode.Complete) labels[0] = labels[1] = labels[2] = "";
+                labels[0] = photoMode ? "CAPTURE" : decoding ? "RELAY 3" : "DECODE";
+                labels[1] = photoMode ? "ZOOM -" : decoding ? "RELAY 1" : "";
+                labels[2] = photoMode ? "ZOOM +" : decoding ? "RELAY 2" : "";
+                labels[3] = photoMode ? "BACK" : "PHOTO";
+                if (!photoMode && decode.Complete)
+                    labels[0] = labels[1] = labels[2] = "";
             }
             for (int i = 0; i < labels.Length; i++)
                 if (labels[i].Length > 0) GUI.Box(ButtonArea(i), labels[i], button);
@@ -409,8 +472,13 @@ namespace HarborWatch
             };
             if (IsRunning)
             {
-                bool aligned = AimAtSignal() >= 0;
-                string symbol = aligned ? "[+]" : "+";
+                bool aligned = photoMode
+                    ? (!album.Complete && HarborLandmarkAlbum.IsFramed(
+                        lens.WorldToViewportPoint(album.CurrentWorldPosition),
+                        lens.aspect, lens.fieldOfView))
+                    : AimAtSignal() >= 0;
+                string symbol = photoMode && album.Complete ? "OK" :
+                    aligned ? "[+]" : "+";
                 if (feedbackLeft > 0f) symbol = lastScanMatched ? "OK" : "×";
                 float pulse = 8f * feedbackLeft / .65f;
                 reticle.fontSize = Mathf.Min(reticle.fontSize, 29);
@@ -434,6 +502,14 @@ namespace HarborWatch
                 GUI.Box(new Rect(point.x - 43f, y - 55f, 86f, 27f),
                     "SIGNAL " + (i+1), signalStyle);
             }
+            if (photoMode && !album.Complete)
+            {
+                Vector3 point = lens.WorldToScreenPoint(album.CurrentWorldPosition);
+                if (point.z > 0f && point.x >= 0f && point.x <= Screen.width &&
+                    point.y >= 0f && point.y <= Screen.height)
+                    GUI.Box(new Rect(point.x - 65f, Screen.height - point.y - 57f,
+                        130f, 30f), album.CurrentTitle.ToUpperInvariant(), signalStyle);
+            }
             float footerY = ButtonArea(0).y - 86f;
             GUI.Box(new Rect(safe.xMin + margin, footerY,
                 safe.width - 2f * margin, 77f),
@@ -441,6 +517,8 @@ namespace HarborWatch
                 "    Lens " + Mathf.RoundToInt(54f / lens.fieldOfView * 100f) / 100f + "x",
                 header);
 
+            // The album uses the live view; do not cover it with the win modal.
+            if (photoMode && !paused) return;
             if (!finished && !paused) return;
             var popup = new GUIStyle(GUI.skin.box)
             {
@@ -451,7 +529,7 @@ namespace HarborWatch
             };
             string text = paused ? "PAUSED\nTap RESUME" :
                 won ? "SURVEY COMPLETE\n+" + reward.Total + " credits | " +
-                     reward.Stars + " stars\nBalance " + credits + "\nTap DECODE for the return link" :
+                     reward.Stars + " stars\nBalance " + credits + "\nDECODE relay or PHOTO landmarks" :
                       "TIME EXPIRED\n" + cleared + "/3 signals\nTap RESTART";
             if (decoding)
             {
