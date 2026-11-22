@@ -245,8 +245,9 @@ namespace HarborWatch
                 "FOLLOW " + (followIndex + 1);
             GUI.Box(new Rect(8, 8, Screen.width - 16, 55),
                 "PORT MERIDIAN  |  " + (stream ? stream.ActiveCount : 0) + " VISITORS\n" +
-                cameraName + "  |  Arrivals " + (stream ? stream.Arrivals : 0) +
-                "  |  Departures " + (stream ? stream.Departures : 0), caption);
+                cameraName + "  |  In " + (stream ? stream.Arrivals : 0) +
+                "  |  Out " + (stream ? stream.Departures : 0) +
+                "  |  Stopping " + (stream ? stream.RestingCount : 0), caption);
 
             string[] labels = {
                 "Rooftop", "Overhead", "Follow next", slow ? "Normal" : "Slow",
