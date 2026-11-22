@@ -59,6 +59,12 @@ namespace HarborWatch
             Step(0f);
         }
 
+        internal static void FinishSurface(Material mat, float smoothness, float metallic)
+        {
+            if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", smoothness);
+            if (mat.HasProperty("_Metallic")) mat.SetFloat("_Metallic", metallic);
+        }
+
         Material Paint(Color colour)
         {
             Material mat;
@@ -66,6 +72,9 @@ namespace HarborWatch
             mat = new Material(template);
             if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", colour);
             if (mat.HasProperty("_Color")) mat.SetColor("_Color", colour);
+            if (colour == Glass || colour == Water) FinishSurface(mat, .78f, .05f);
+            else if (colour == Blue || colour == Slate) FinishSurface(mat, .42f, .30f);
+            else FinishSurface(mat, .17f, 0f);
             materials.Add(colour, mat);
             return mat;
         }

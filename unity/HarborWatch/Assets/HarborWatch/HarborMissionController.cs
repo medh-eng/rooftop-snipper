@@ -42,7 +42,12 @@ namespace HarborWatch
         float yaw, pitch, secondsLeft;
         float lastPinchGap = -1f;
         int cleared, attempts, chain, bestChain;
+        readonly HarborRelayDecode decode = new HarborRelayDecode();
+        bool decoding;
+        string decodeHint;
         int credits;
+        float feedbackLeft;
+        bool lastScanMatched;
         bool paused, finished, won;
         bool dragging;
         Vector2 previousPointer;
@@ -132,6 +137,10 @@ namespace HarborWatch
 
         void RestartMission()
         {
+            decode.Reset();
+            decoding = false;
+            decodeHint = "Enter the newest relay first.";
+            feedbackLeft = 0f;
             cleared = attempts = chain = bestChain = 0;
             secondsLeft = HarborMissionRules.TimeLimitSeconds;
             finished = won = paused = false;
@@ -191,6 +200,17 @@ namespace HarborWatch
             for (int i = 0; i < 5; i++)
             {
                 if (!ButtonArea(i).Contains(position)) continue;
+                if (finished && won && i < 3)
+                {
+                    if (!decoding && i == 0) decoding = true;
+                    else if (decoding && !decode.Complete)
+                    {
+                        int relay = i == 0 ? 3 : i;
+                        decodeHint = decode.Submit(relay) ?
+                            "Matched. Continue backwards." : "Check the trace and try again.";
+                    }
+                    return true;
+                }
                 switch (i)
                 {
                     case 0: Scan(); break;
@@ -288,6 +308,8 @@ namespace HarborWatch
             if (!IsRunning) return;
             attempts++;
             int selected = AimAtSignal();
+            lastScanMatched = selected >= 0;
+            feedbackLeft = .65f;
             if (selected < 0)
             {
                 chain = 0;
@@ -296,6 +318,7 @@ namespace HarborWatch
             }
             signals[selected].Cleared = true;
             signals[selected].Model.SetActive(false);
+            decode.Record(selected + 1);
             cleared++;
             chain++;
             bestChain = Mathf.Max(bestChain, chain);
@@ -332,6 +355,7 @@ namespace HarborWatch
             HandlePointer();
             if (IsRunning)
             {
+                feedbackLeft = Mathf.Max(0f, feedbackLeft - Time.deltaTime);
                 secondsLeft = Mathf.Max(0f, secondsLeft - Time.deltaTime);
                 if (secondsLeft <= 0f) FinishMission(false);
             }
@@ -364,8 +388,16 @@ namespace HarborWatch
             string[] labels = {
                 "SCAN", "ZOOM -", "ZOOM +", paused ? "RESUME" : "PAUSE", "RESTART"
             };
-            for (int i = 0; i < 5; i++)
-                GUI.Box(ButtonArea(i), labels[i], button);
+            if (finished && won)
+            {
+                labels[0] = decoding ? "RELAY 3" : "DECODE";
+                labels[1] = decoding ? "RELAY 1" : "";
+                labels[2] = decoding ? "RELAY 2" : "";
+                labels[3] = "";
+                if (decode.Complete) labels[0] = labels[1] = labels[2] = "";
+            }
+            for (int i = 0; i < labels.Length; i++)
+                if (labels[i].Length > 0) GUI.Box(ButtonArea(i), labels[i], button);
 
             float midX = Screen.width * .5f;
             float midY = Screen.height * .5f;
@@ -375,7 +407,16 @@ namespace HarborWatch
                 fontSize = Mathf.Clamp(Mathf.RoundToInt(safe.width / 12f), 23, 55),
                 fontStyle = FontStyle.Bold
             };
-            GUI.Box(new Rect(midX - 20f, midY - 20f, 40f, 40f), "+", reticle);
+            if (IsRunning)
+            {
+                bool aligned = AimAtSignal() >= 0;
+                string symbol = aligned ? "[+]" : "+";
+                if (feedbackLeft > 0f) symbol = lastScanMatched ? "OK" : "×";
+                float pulse = 8f * feedbackLeft / .65f;
+                reticle.fontSize = Mathf.Min(reticle.fontSize, 29);
+                GUI.Box(new Rect(midX - 30f - pulse, midY - 23f - pulse,
+                    60f + 2f * pulse, 46f + 2f * pulse), symbol, reticle);
+            }
             var signalStyle = new GUIStyle(GUI.skin.box)
             {
                 alignment = TextAnchor.MiddleCenter,
@@ -410,8 +451,14 @@ namespace HarborWatch
             };
             string text = paused ? "PAUSED\nTap RESUME" :
                 won ? "SURVEY COMPLETE\n+" + reward.Total + " credits | " +
-                     reward.Stars + " stars\nBalance " + credits + "\nTap RESTART to replay" :
+                     reward.Stars + " stars\nBalance " + credits + "\nTap DECODE for the return link" :
                       "TIME EXPIRED\n" + cleared + "/3 signals\nTap RESTART";
+            if (decoding)
+            {
+                text = decode.Complete ? "RELAY DECODED\nTerminal link restored.\nTap RESTART for a new survey." :
+                    "RELAY DECODE\nScan order: " + decode.Trace +
+                    "\nReturn the sequence in reverse.\n" + decode.Matched + " of 3 matched\n" + decodeHint;
+            }
             GUI.Box(new Rect(safe.xMin + safe.width * .1f,
                 midY - 98f, safe.width * .8f, 196f), text, popup);
         }

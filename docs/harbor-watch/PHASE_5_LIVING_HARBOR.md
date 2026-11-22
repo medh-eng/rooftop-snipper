@@ -45,3 +45,23 @@ Console errors. This is not yet a production APK or complete art/audio kit.
 
 Next planned slice: coherent harbor materials, original ambient sound and
 improved mission feedback, followed by additional distinct objective types.
+
+## Phase 5B review
+
+The shared harbor now uses different finishes for opaque glazing, water,
+painted metal and matte surfaces. An original 16-second mono ambience loop
+adds water wash and a distant ferry call. Pause and resume follow the active
+scene controller. The mission reticle brackets a relay within scan range
+and briefly displays OK or × after a scan.
+
+After a successful survey, DECODE opens an optional terminal puzzle. Read
+the three relay IDs in the order you surveyed them, then tap their IDs in
+reverse. A wrong answer allows a retry at the same position. Decoding awards
+no additional credits. RESTART returns to a fresh survey.
+
+Before merging, run Harbor Watch > Verify Relay Decode for all six orders.
+In portrait Play mode, scan both in and out of range, pause during feedback,
+complete the survey, retry a wrong decode, finish the puzzle and restart.
+Check scene audio through two loops and pause/resume in crowd, mission and
+drone views. Inspect the water and glass under the scene light on the target
+phone, then record portrait readability, audio levels and frame pacing.
