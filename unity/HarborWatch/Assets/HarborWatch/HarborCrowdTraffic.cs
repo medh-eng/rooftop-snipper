@@ -45,11 +45,11 @@ namespace HarborWatch
             Track(12.5f,1.7f, 8.2f,1.7f, 5.1f,3.1f, 1.0f,2.6f,
                   -3.0f,3.8f, -7.9f,4.1f, -12.4f,3.8f),         // east -> west
             Track(0,8.2f, 0,5.4f, -.8f,3.6f, -2.7f,2.5f,
-                  -5.4f,.8f, -8.4f,-.5f, -12.4f,-.7f),         // terminal -> west
+                  -5.1f,1.6f, -8.4f,-.5f, -12.4f,-.7f),         // terminal -> west
             Track(-12.4f,-3.2f, -8.5f,-1.7f, -5.5f,-2.8f,
                   -2.8f,-1.4f, -1.5f,1.2f, -.4f,3.9f, 0,8.2f), // west -> terminal
             Track(12.5f,-1.2f, 8.2f,-.7f, 6.2f,-.4f,
-                  4.3f,-.8f, 4.2f,-3.1f, 4.4f,-5.7f,
+                  4.3f,-.8f, 3.9f,-3.5f, 4.4f,-5.7f,
                   4.4f,-9.0f),                                  // east -> ferry
             Track(4.4f,-9f, 4.6f,-5.9f, 6.6f,-4.0f,
                   8.7f,-2.8f, 12.5f,-2.8f),                    // ferry -> east
