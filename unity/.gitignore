@@ -1,0 +1,22 @@
+# Unity Hub creates the project in HarborWatch/ under this folder.
+# Assets (including .meta files), Packages and ProjectSettings belong in Git.
+/HarborWatch/[Ll]ibrary/
+/HarborWatch/[Tt]emp/
+/HarborWatch/[Oo]bj/
+/HarborWatch/[Ll]ogs/
+/HarborWatch/[Uu]ser[Ss]ettings/
+/HarborWatch/[Bb]uild/
+/HarborWatch/[Bb]uilds/
+/HarborWatch/[Mm]emoryCaptures/
+/HarborWatch/[Rr]ecordings/
+/HarborWatch/.gradle/
+/HarborWatch/.vs/
+/HarborWatch/.idea/
+/HarborWatch/*.csproj
+/HarborWatch/*.sln
+/HarborWatch/*.slnx
+/HarborWatch/*.userprefs
+*.apk
+*.aab
+*.keystore
+*.jks
