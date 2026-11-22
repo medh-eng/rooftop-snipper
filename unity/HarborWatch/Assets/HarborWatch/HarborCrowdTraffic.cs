@@ -36,6 +36,33 @@ namespace HarborWatch
             new Color(.82f, .58f, .43f), new Color(.51f, .33f, .25f)
         };
 
+        // Short, non-interactive sightseeing pauses are anchored on existing
+        // tested paths. Visitors stop at a landmark, look around and continue
+        // to their original exit; no additional path or obstacle crossing.
+        readonly struct LandmarkStop
+        {
+            public readonly int RouteIndex;
+            public readonly Vector3 PathHint, LookTowards;
+            public LandmarkStop(int routeIndex, Vector3 pathHint, Vector3 lookTowards)
+            {
+                RouteIndex = routeIndex;
+                PathHint = pathHint;
+                LookTowards = lookTowards;
+            }
+        }
+
+        static readonly LandmarkStop[] Landmarks =
+        {
+            new LandmarkStop(0, new Vector3(4f, 0f, -1.6f),
+                new Vector3(5.5f, 0f, -2.7f)), // bench
+            new LandmarkStop(2, new Vector3(-5.1f, 0f, 1.6f),
+                new Vector3(-6.2f, 0f, 2.4f)), // ticket kiosk
+            new LandmarkStop(4, new Vector3(4.3f, 0f, -.8f),
+                new Vector3(5.5f, 0f, -2.7f)), // bench
+            new LandmarkStop(9, new Vector3(-4.9f, 0f, -3.9f),
+                new Vector3(-4.9f, 0f, -8f)) // harbor view
+        };
+
         // Four access points: west street, east street, terminal door and ferry gangway.
         // Endpoints sit beyond the set edges, so no visitor teleports on the paving.
         static readonly Vector3[][] Waypoints =
@@ -129,6 +156,20 @@ namespace HarborWatch
                 Vector3 forward = At(distance + .2f) - At(distance - .2f);
                 return forward.sqrMagnitude > .0001f ? forward.normalized : Vector3.forward;
             }
+
+            // Convert an authored landmark position into distance along the
+            // same curved path. This avoids a teleport or a new straight chord.
+            public float NearestDistance(Vector3 point)
+            {
+                float best = float.PositiveInfinity;
+                float distance = 0f;
+                for (int i = 0; i < samples.Length; i++)
+                {
+                    float square = (samples[i] - point).sqrMagnitude;
+                    if (square < best) { best = square; distance = metres[i]; }
+                }
+                return distance;
+            }
         }
 
         sealed class Agent
@@ -136,6 +177,7 @@ namespace HarborWatch
             public GameObject entity;
             public Transform anchor;
             public Transform hips;
+            public Transform head;
             public GameObject hat;
             public GameObject backpack;
             public GameObject satchel;
@@ -145,6 +187,9 @@ namespace HarborWatch
             public AnimationClip motion;
             public bool visible, jogging;
             public float distance, time, speedMultiplier, respawnDelay, currentSpeed;
+            public float stopDistance, stopDuration, remainingStop, stopElapsed;
+            public Vector3 stopLookTowards;
+            public bool resting, stopCompleted;
             public int appearance;
         }
 
@@ -166,6 +211,15 @@ namespace HarborWatch
         }
         public int Arrivals { get { return arrivals; } }
         public int Departures { get { return departures; } }
+        public int RestingCount
+        {
+            get
+            {
+                int count = 0;
+                foreach (var a in agents) if (a != null && a.visible && a.resting) count++;
+                return count;
+            }
+        }
 
         static AnimationClip FindClip(string resource)
         {
@@ -209,6 +263,7 @@ namespace HarborWatch
                     Debug.LogError("CrowdWalk FBX rig is missing a required bone.");
                     return false;
                 }
+                a.head = head;
                 CreateClothing(a);
                 walk.SampleAnimation(a.entity, 0);
                 CreateAccessories(a, head, chest);
@@ -358,6 +413,28 @@ namespace HarborWatch
             a.time = (float)random.NextDouble() * a.motion.length;
             a.currentSpeed = (a.jogging ? JogMetresPerSecond : WalkMetresPerSecond) * a.speedMultiplier;
             a.respawnDelay = 0;
+            a.resting = false;
+            a.stopCompleted = false;
+            a.remainingStop = 0f;
+            a.stopElapsed = 0f;
+            a.stopDistance = -1f;
+            // Only occasional walkers stop; joggers always continue through.
+            // Different visits independently choose whether to pause.
+            if (!a.jogging && random.NextDouble() < .72)
+            {
+                foreach (var landmark in Landmarks)
+                {
+                    if (landmark.RouteIndex != routeIndex) continue;
+                    float along = a.route.NearestDistance(landmark.PathHint);
+                    if (along > a.distance + .8f && along < a.route.Length - 2f)
+                    {
+                        a.stopDistance = along;
+                        a.stopLookTowards = landmark.LookTowards;
+                        a.stopDuration = 1.35f + (float)random.NextDouble() * 2.05f;
+                    }
+                    break;
+                }
+            }
             a.visible = true;
             a.entity.SetActive(true);
             PaintVisitor(a);
@@ -407,6 +484,7 @@ namespace HarborWatch
             {
                 Agent a = agents[i];
                 if (a == null || !a.visible) continue;
+                if (a.resting) { plannedSpeeds[i] = 0f; continue; }
                 float nominal = (a.jogging ? JogMetresPerSecond : WalkMetresPerSecond)
                     * a.speedMultiplier;
                 float factor = 1f;
@@ -415,15 +493,21 @@ namespace HarborWatch
                 {
                     if (i == j || agents[j] == null || !agents[j].visible) continue;
                     Agent b = agents[j];
-                    float neighbourNominal =
-                        (b.jogging ? JogMetresPerSecond : WalkMetresPerSecond)
-                        * b.speedMultiplier;
+                    float neighbourNominal = b.resting ? 0f : b.currentSpeed;
                     factor = Mathf.Min(factor, HarborCrowdSpacing.YieldFactor(
                         a.anchor.position, forward, nominal, i,
                         b.anchor.position, b.route.Forward(b.distance),
                         neighbourNominal, j));
                 }
-                plannedSpeeds[i] = nominal * factor;
+                float targetSpeed = nominal * factor;
+                if (a.stopDistance >= 0f && !a.stopCompleted)
+                {
+                    // Speed-limit using a short braking curve before arrival.
+                    // The root and walk clip share this eventual speed.
+                    float remaining = Mathf.Max(0f, a.stopDistance - a.distance);
+                    targetSpeed = Mathf.Min(targetSpeed, Mathf.Sqrt(2.1f * remaining));
+                }
+                plannedSpeeds[i] = targetSpeed;
             }
 
             for (int i = 0; i < agents.Length; i++)
@@ -444,13 +528,57 @@ namespace HarborWatch
                     continue;
                 }
 
+                if (a.resting)
+                {
+                    a.currentSpeed = 0f;
+                    a.remainingStop -= dt;
+                    a.stopElapsed += dt;
+                    // The first walk frame is a contact pose. Holding it while
+                    // stopped avoids cycling airborne feet in place.
+                    walk.SampleAnimation(a.entity, 0f);
+                    Vector3 look = a.stopLookTowards - a.anchor.position;
+                    look.y = 0f;
+                    if (look.sqrMagnitude > .001f)
+                    {
+                        float desiredYaw = Mathf.Clamp(
+                            Vector3.SignedAngle(a.anchor.forward, look, Vector3.up), -36f, 36f);
+                        float blend = Mathf.Min(1f, a.stopElapsed * 2f) *
+                            Mathf.Min(1f, Mathf.Max(0f, a.remainingStop) * 2f);
+                        float sweep = Mathf.Sin(a.stopElapsed * 1.3f) * 3f;
+                        a.head.localRotation *= Quaternion.Euler(0f,
+                            (desiredYaw + sweep) * blend, 0f);
+                    }
+                    if (a.remainingStop <= 0f)
+                    {
+                        a.resting = false;
+                        a.stopCompleted = true;
+                        a.time = 0f;
+                    }
+                    continue;
+                }
+
                 float nominal = (a.jogging ? JogMetresPerSecond : WalkMetresPerSecond)
                     * a.speedMultiplier;
                 // Decelerate quickly for crossings; accelerate more gently.
                 float target = plannedSpeeds[i];
                 float responsiveness = target < a.currentSpeed ? 3.5f : 1.35f;
                 a.currentSpeed = Mathf.MoveTowards(a.currentSpeed, target, responsiveness * dt);
-                a.distance += a.currentSpeed * dt;
+                float advance = a.currentSpeed * dt;
+                if (a.stopDistance >= 0f && !a.stopCompleted &&
+                    a.distance + advance >= a.stopDistance - .025f)
+                {
+                    // The stopping point lies on the original route. Visitors
+                    // resume towards their original destination after the pause.
+                    a.distance = a.stopDistance;
+                    a.anchor.position = a.route.At(a.distance);
+                    a.currentSpeed = 0f;
+                    a.resting = true;
+                    a.remainingStop = a.stopDuration;
+                    a.stopElapsed = 0f;
+                    walk.SampleAnimation(a.entity, 0f);
+                    continue;
+                }
+                a.distance += advance;
                 // Slow the gait when yielding. This keeps planted shoes closer
                 // to the same paving joint than advancing the clip at full speed.
                 float baseSpeed = a.jogging ? JogMetresPerSecond : WalkMetresPerSecond;
