@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Scenes/HarborMission.unity
+    guid: e0c148431ad944be88ef3a342ad424ae
+  - enabled: 1
     path: Assets/Scenes/WalkReview.unity
     guid: dc49974e4e365d5992d5f834fddb9151
   - enabled: 1
