@@ -18,7 +18,7 @@ namespace HarborWatch
         static readonly Vector3 InitialPosition = new Vector3(-5.1f, 8.5f, -3.3f);
         static readonly Vector3 RooftopPosition = new Vector3(-10f, 10.5f, -12f);
         static readonly Vector3 RooftopFocus = new Vector3(0f, .6f, .4f);
-        static readonly Vector3 BeaconCentre = new Vector3(2.3f, 8.2f, -.2f);
+        static readonly Vector3 BeaconCentre = new Vector3(2.3f, 6.6f, -.2f);
 
         readonly List<Material> ownedMaterials = new List<Material>();
         readonly Transform[] spinningDiscs = new Transform[4];
@@ -242,8 +242,8 @@ namespace HarborWatch
             Vector3 direction = beacon.transform.position - cameraView.transform.position;
             RaycastHit hit;
             if (Physics.Raycast(cameraView.transform.position, direction.normalized,
-                out hit, direction.magnitude - .30f, Physics.DefaultRaycastLayers,
-                QueryTriggerInteraction.Ignore))
+                out hit, Mathf.Max(.01f, direction.magnitude - .30f),
+                Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
             {
                 hint = "A building obscures the signal. Fly around it for a clear view.";
                 return;
@@ -317,6 +317,12 @@ namespace HarborWatch
 
         void ReadMouse()
         {
+            // Mobile OSes can emulate mouse clicks from touches. Avoid applying
+            // the same gesture twice or stealing a second thumb's input.
+            var touchscreen = Touchscreen.current;
+            if (touchscreen != null)
+                foreach (var touch in touchscreen.touches)
+                    if (touch.press.isPressed || touch.press.wasReleasedThisFrame) return;
             var mouse = Mouse.current;
             if (mouse == null) return;
             float scroll = mouse.scroll.ReadValue().y;
