@@ -27,6 +27,7 @@ namespace HarborWatch
         Texture2D pavingTexture;
         HarborCrowdTraffic stream;
         HarborEnvironment environment;
+        AudioSource ambience;
         int view; // 0 rooftop, 1 overhead, 2 follow
         int followIndex = -1;
         bool slow;
@@ -55,6 +56,11 @@ namespace HarborWatch
                 Fail("Crowd animation assets not loaded. Check CrowdWalk.fbx and CrowdJog.fbx.");
                 return;
             }
+            ambience = world.AddComponent<AudioSource>();
+            ambience.playOnAwake = false;
+            ambience.loop = true;
+            ambience.clip = Resources.Load<AudioClip>("MeridianAmbience");
+            if (ambience.clip) ambience.Play();
             PositionCamera();
             if (missionMode) mission = gameObject.AddComponent<HarborMissionController>();
             else if (droneMode) droneReview = gameObject.AddComponent<HarborDroneReview>();
@@ -128,8 +134,9 @@ namespace HarborWatch
                 new Vector3(5.2f, .16f, 8.3f), new Color(.60f, .58f, .53f));
             Part("East street footpath", PrimitiveType.Cube, new Vector3(10.6f, -.085f, .0f),
                 new Vector3(5.2f, .16f, 8.3f), new Color(.60f, .58f, .53f));
-            Part("Harbor water", PrimitiveType.Cube, new Vector3(0, -.28f, -8.0f),
+            var sea = Part("Harbor water", PrimitiveType.Cube, new Vector3(0, -.28f, -8.0f),
                 new Vector3(24, .12f, 4), new Color(.21f, .48f, .59f));
+            HarborEnvironment.FinishSurface(sea.GetComponent<Renderer>().sharedMaterial, .78f, .05f);
             Part("Terminal left wing", PrimitiveType.Cube, new Vector3(-4.0f, 2.0f, 5.3f),
                 new Vector3(4.2f, 4.0f, 1.4f), new Color(.78f, .73f, .61f));
             Part("Terminal right wing", PrimitiveType.Cube, new Vector3(4.0f, 2.0f, 5.3f),
@@ -266,6 +273,15 @@ namespace HarborWatch
                 environment.Step(seconds);
             }
             PositionCamera();
+        }
+
+        void LateUpdate()
+        {
+            if (!ambience || !ambience.clip) return;
+            bool playing = missionMode ? mission && mission.IsRunning :
+                droneMode ? droneReview && droneReview.IsPlaying : !paused;
+            if (playing && !ambience.isPlaying) ambience.UnPause();
+            else if (!playing && ambience.isPlaying) ambience.Pause();
         }
 
         void OnGUI()
