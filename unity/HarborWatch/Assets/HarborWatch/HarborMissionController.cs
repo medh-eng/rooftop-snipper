@@ -69,6 +69,11 @@ namespace HarborWatch
                 return;
             }
 
+            // This contract's touch HUD is designed for Android portrait.
+            // The other two review scenes retain their existing orientation.
+            if (Application.isMobilePlatform)
+                Screen.orientation = ScreenOrientation.Portrait;
+
             credits = Mathf.Clamp(PlayerPrefs.GetInt(
                 SaveCredits, HarborMissionRules.StartingCredits), 0, 9999999);
             BuildSignals();
@@ -371,6 +376,12 @@ namespace HarborWatch
                 fontStyle = FontStyle.Bold
             };
             GUI.Box(new Rect(midX - 20f, midY - 20f, 40f, 40f), "+", reticle);
+            var signalStyle = new GUIStyle(GUI.skin.box)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = Mathf.Clamp(Mathf.RoundToInt(safe.width / 49f), 11, 17),
+                fontStyle = FontStyle.Bold
+            };
             for (int i = 0; i < signals.Length; i++)
             {
                 if (signals[i].Cleared) continue;
@@ -379,8 +390,8 @@ namespace HarborWatch
                     point.x < 0f || point.x > Screen.width ||
                     point.y < 0f || point.y > Screen.height) continue;
                 float y = Screen.height - point.y;
-                GUI.Box(new Rect(point.x - 41f, y - 55f, 82f, 27f),
-                    "SIGNAL " + (i+1), button);
+                GUI.Box(new Rect(point.x - 43f, y - 55f, 86f, 27f),
+                    "SIGNAL " + (i+1), signalStyle);
             }
             float footerY = ButtonArea(0).y - 86f;
             GUI.Box(new Rect(safe.xMin + margin, footerY,
