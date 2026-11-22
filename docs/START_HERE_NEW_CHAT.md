@@ -1,62 +1,19 @@
-# Rooftop Snipper Unity handoff
+# Harbor Watch · start here
 
-## The important folder decision
+## Use the project you already created
 
-Do not put the downloaded repository ZIP inside the Unity project.
+Keep your saved copy. In Windows File Explorer, open HarborWatch and check that Assets, Packages and ProjectSettings sit side by side. Keep their contents, including .meta files. Check for Packages/manifest.json and ProjectSettings/ProjectVersion.txt. Unity Hub can reopen this copy through Add project from disk by selecting HarborWatch.
 
-The GitHub repository is the outer project folder. The Unity project is one folder inside it:
+## Upload the whole folder through Chrome
 
-\`\`\`text
-rooftop-snipper/
-├── src/
-├── docs/
-└── unity/
-    └── HarborWatch/
-        ├── Assets/
-        ├── Packages/
-        └── ProjectSettings/
-\`\`\`
+1. If the three folders are loose, create a folder named HarborWatch and copy the three folders into it. Keep the originals until the upload is verified.
+2. In Chrome, [open the unity folder on the prototype branch](https://github.com/medh-eng/rooftop-snipper/tree/unity/harbor-watch/unity). Choose **Add file → Upload files**.
+3. In Explorer, go up one level so you can see the HarborWatch folder itself. Drag that folder onto the upload area in Chrome. GitHub lists the individual files automatically.
+4. Check the upload list for HarborWatch/ProjectSettings/ProjectVersion.txt. Commit directly to unity/harbor-watch. On GitHub the finished path will be unity/HarborWatch/ProjectSettings/ProjectVersion.txt.
+5. If GitHub reports too many files, compress the folder containing those three source folders into a ZIP and attach it to the project chat. Ask the assistant to extract it, verify the layout and commit the source files to the prototype branch.
 
-Unity must open \`unity/HarborWatch/\`, not the outer \`rooftop-snipper/\` folder.
+## Continue in a new chat
 
-## You already created HarborWatch
+Give the new chat the [documents folder](https://github.com/medh-eng/rooftop-snipper/tree/unity/harbor-watch/docs). It contains this guide, the [development plan](UNITY_HARBOR_WATCH_PLAN.md) and the [project handoff](UNITY_PROJECT_HANDOFF.md).
 
-If Unity created the project somewhere else, close Unity and copy these three folders from the existing project:
-
-- \`Assets\`
-- \`Packages\`
-- \`ProjectSettings\`
-
-Copy them into:
-
-\`\`\`text
-rooftop-snipper/unity/HarborWatch/
-\`\`\`
-
-Keep the \`.meta\` files inside \`Assets\`. Do not copy \`Library\`, \`Temp\`, \`Logs\`, \`Obj\`, \`Build\`, or \`Builds\`.
-
-Then open Unity Hub and choose **Add project from disk**. Select the \`HarborWatch\` project folder.
-
-## Upload through Chrome
-
-1. Open the repository in Chrome.
-2. Open the \`unity/harbor-watch\` branch.
-3. Open the \`unity\` folder.
-4. Click **Add file → Upload files**.
-5. Upload the contents of \`HarborWatch\`, keeping the folders named \`Assets\`, \`Packages\`, and \`ProjectSettings\`.
-6. Commit with the message \`Create Harbor Watch Unity project\`.
-
-GitHub’s browser upload has a 25 MiB limit per file and allows up to 100 files in one upload. If the upload stops at 100 files, repeat it in batches. The paths must remain \`unity/HarborWatch/Assets/...\`, \`unity/HarborWatch/Packages/...\`, and \`unity/HarborWatch/ProjectSettings/...\`.
-
-## What happens next
-
-After the upload, start a new chat and attach or paste these files:
-
-- \`docs/START_HERE_NEW_CHAT.md\`
-- \`docs/UNITY_PROJECT_HANDOFF.md\`
-- \`docs/UNITY_HARBOR_WATCH_PLAN.md\`
-
-Tell the new chat:
-
-> The Unity project is uploaded to \`medh-eng/rooftop-snipper\`, branch \`unity/harbor-watch\`, under \`unity/HarborWatch\`. Read the three Markdown files in \`docs\`. Inspect the Unity project and begin Phase 1, the convincing pedestrian walk.
-
+> Read the three documents on the unity/harbor-watch branch of medh-eng/rooftop-snipper. Check whether unity/HarborWatch contains Assets, Packages and ProjectSettings. If the project is present, verify the Editor version and begin Phase 1, the pedestrian walking test.
