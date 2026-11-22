@@ -222,6 +222,16 @@ namespace HarborWatch
             UpdateCamera();
         }
 
+        bool HasLineOfSight(Vector3 destination)
+        {
+            Vector3 direction = destination - cameraView.transform.position;
+            if (direction.magnitude <= .30f) return true;
+            RaycastHit hit;
+            return !Physics.Raycast(cameraView.transform.position,
+                direction.normalized, out hit, direction.magnitude - .30f,
+                Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+        }
+
         void Identify()
         {
             if (paused || !droneMode) return;
@@ -239,11 +249,7 @@ namespace HarborWatch
                 hint = "Centre the aerial signal first; the drone is not yet identified.";
                 return;
             }
-            Vector3 direction = beacon.transform.position - cameraView.transform.position;
-            RaycastHit hit;
-            if (Physics.Raycast(cameraView.transform.position, direction.normalized,
-                out hit, Mathf.Max(.01f, direction.magnitude - .30f),
-                Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+            if (!HasLineOfSight(beacon.transform.position))
             {
                 hint = "A building obscures the signal. Fly around it for a clear view.";
                 return;
@@ -476,13 +482,15 @@ namespace HarborWatch
             {
                 Vector3 point = cameraView.WorldToScreenPoint(beacon.transform.position);
                 if (point.z > 0f && point.x > 0f && point.x < Screen.width &&
-                    point.y > 0f && point.y < Screen.height)
+                    point.y > 0f && point.y < Screen.height &&
+                    HasLineOfSight(beacon.transform.position))
                     GUI.Box(new Rect(point.x-62f, Screen.height-point.y-47f,124f,29f),
                         "SURVEY SIGNAL", button);
             }
-            float messageY = ButtonArea(3).y - 82f;
+            // Keep the help line above the flying joystick and altitude keys.
+            float messageY = ButtonArea(8).yMax + 7f;
             GUI.Box(new Rect(safe.xMin+margin, messageY,
-                safe.width-2f*margin, 72f),
+                safe.width-2f*margin, 60f),
                 paused ? "PAUSED — use RESUME to continue." : hint, caption);
         }
 
