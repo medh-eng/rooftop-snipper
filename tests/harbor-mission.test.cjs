@@ -89,3 +89,16 @@ test('mission has touch drag, zoom, pause, restart, timer and permanent save', (
   assert.match(mission, /PlayerPrefs\.SetInt\(SaveCleared, 1\)/);
   assert.match(mission, /PlayerPrefs\.Save\(\)/);
 });
+
+test('Android development build is explicit, verified and uses a unique app ID', () => {
+  const editor = file(folder+'HarborWatch/Editor/HarborMissionBuildTools.cs');
+  const settings = file('unity/HarborWatch/ProjectSettings/ProjectSettings.asset');
+  assert.match(editor, /MenuItem\("Harbor Watch\/Verify Phase 3 Mission"\)/);
+  assert.match(editor, /MenuItem\("Harbor Watch\/Build Android Development APK"\)/);
+  assert.match(editor, /HarborMissionRules\.Settle\(3, 3, 3, true\)/);
+  assert.match(editor, /if \(!ValidateMission\(\)\)/);
+  assert.match(editor, /BuildOptions\.Development \| BuildOptions\.AllowDebugging/);
+  assert.match(settings, /Android: com\.medhaneeka\.harborwatch/);
+  assert.match(settings, /companyName: Medhaneeka Healthcare/);
+  assert.match(mission, /Screen\.orientation = ScreenOrientation\.Portrait/);
+});
