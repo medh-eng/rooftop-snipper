@@ -471,6 +471,34 @@ namespace HarborWatch
             }
         }
 
+        // In the Unity Scene view, select the Main Camera to inspect route
+        // geometry and the personal-space rings used for traffic review.
+        void OnDrawGizmosSelected()
+        {
+            if (routes == null || routes.Length == 0) return;
+            Gizmos.color = new Color(.15f, .75f, .78f, .65f);
+            foreach (var path in routes)
+            {
+                if (path == null) continue;
+                Vector3 previous = path.At(0);
+                for (float distance = .4f; distance < path.Length; distance += .4f)
+                {
+                    Vector3 next = path.At(distance);
+                    Gizmos.DrawLine(previous + Vector3.up * .05f, next + Vector3.up * .05f);
+                    previous = next;
+                }
+                Gizmos.DrawLine(previous + Vector3.up * .05f,
+                    path.At(path.Length) + Vector3.up * .05f);
+            }
+            Gizmos.color = new Color(1f, .62f, .20f, .85f);
+            foreach (var a in agents)
+            {
+                if (a == null || !a.visible) continue;
+                Vector3 marker = a.anchor.position + Vector3.up * .1f;
+                Gizmos.DrawWireSphere(marker, HarborCrowdSpacing.BodyClearance * .5f);
+            }
+        }
+
         public int NextVisible(int previous)
         {
             for (int n = 1; n <= agents.Length; n++)

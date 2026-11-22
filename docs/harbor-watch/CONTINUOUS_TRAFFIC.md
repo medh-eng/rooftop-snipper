@@ -64,3 +64,13 @@ The import script sets Legacy animation on both clips.
 - Props are stylised blockout meshes and accessories. Future polish may add
   better clothing silhouettes, more visitor body types, staggered waiting
   and dynamic collision avoidance after visual review.
+
+## Phase 2.3 — local crowd yielding
+
+Added following-distance and crossing-yield logic to reduce walkers moving through
+one another. The visitor's route speed and gait playback speed are coordinated,
+and new visitors wait briefly if their entrance is occupied. In Unity Scene
+view, select the Main Camera to see route lines and personal-space rings.
+
+See [PEDESTRIAN_SPACING.md](PEDESTRIAN_SPACING.md) for the specific acceptance
+checks and limitations. **Not yet verified in the Unity Editor or Android.**
