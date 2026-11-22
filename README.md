@@ -21,3 +21,7 @@ Run `node --test tests/*.test.cjs` for campaign, economy and targeting checks.
 For a single offline file, run `node tools/build-offline.cjs Rooftop-Sniper.html`, then open the resulting HTML in a browser. It includes the entire campaign and artwork.
 
 The optional browser test runs all nine contracts on desktop Chromium and checks touch interactions at a phone viewport. With Playwright and its Chromium installed, run `node --test tests/campaign-browser.cjs`. Set `BROWSER_PATH` to use an existing Chromium executable.
+
+## Unity Android prototype
+
+The [Harbor Watch Unity plan](docs/UNITY_HARBOR_WATCH_PLAN.md) covers opening the project on your PC, testing the first pedestrian's walk, and the tasks for you and ChatGPT in each phase.
