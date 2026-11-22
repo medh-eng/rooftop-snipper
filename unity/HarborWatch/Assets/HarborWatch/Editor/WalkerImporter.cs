@@ -8,7 +8,9 @@ namespace HarborWatch.Editor
     {
         void OnPreprocessModel()
         {
-            if (assetPath != "Assets/HarborWatch/Resources/HarborWalker.fbx") return;
+            if (assetPath != "Assets/HarborWatch/Resources/HarborWalker.fbx" &&
+                assetPath != "Assets/HarborWatch/Resources/CrowdWalk.fbx" &&
+                assetPath != "Assets/HarborWatch/Resources/CrowdJog.fbx") return;
             var importer = (ModelImporter)assetImporter;
             importer.animationType = ModelImporterAnimationType.Legacy;
             importer.generateAnimations = ModelImporterGenerateAnimations.GenerateAnimations;

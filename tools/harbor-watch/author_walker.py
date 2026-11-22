@@ -124,9 +124,15 @@ def yaw(a): return Quaternion(Z,a)
 def ease(t): return t*t*(3-2*t)
 # Each step moves one shoe between explicit world-space contacts. Both shoes
 # stay fixed during pauses; corner turns use three short stepping contacts.
+# A smooth 90-degree arc replaces the old five-step corner pivot.
+# 0.62 m radius gives about 0.32 m of progress per curved step (three
+# weight-bearing contacts). There is no 18-frame standstill before corners.
+# The whole route is closed and all 36 footsteps have alternating feet.
+# We author the route twice so the last planted contacts become the first
+# contacts, removing the loop seam without adding a fourth corner step.
 center=V((-.95,-.95,0))
 angle=0.
-feet=[center+V((s*.108,0,0)) for s in (-1,1)]
+feet=[]
 beats=[]
 def beat(frames, dest=None, side=0, target_angle=None):
     global angle
@@ -136,22 +142,36 @@ def beat(frames, dest=None, side=0, target_angle=None):
     beats.append((frames,[p.copy() for p in feet],side,end.copy(),angle,end_angle,dest is not None))
     feet[side]=end.copy()
     angle=end_angle
-beat(15)
-side=0
-for edge in range(4):
-    origin=center.copy()
-    for distance in (.32,.68,1.05,1.42,1.75,1.9,1.9):
-        center=origin+yaw(angle)@V((0,distance,0))
-        beat(12,center+yaw(angle)@V(((-1,1)[side]*.108,0,0)),side)
-        side=1-side
-    beat(18)
-    for k in range(1,5):
-        target=-(edge+k/4)*math.pi/2
-        beat(8,center+yaw(target)@V(((-1,1)[side]*.108,0,0)),side,target)
-        side=1-side
-    beat(8,center+yaw(angle)@V(((-1,1)[side]*.108,0,0)),side)
-    side=1-side
-beat(15)
+
+def build_rounded_route(start_contacts):
+    global center, angle, feet, beats
+    center=V((-.95,-.95,0))
+    angle=0.
+    feet=[p.copy() for p in start_contacts]
+    beats=[]
+    beat(12)
+    side=0
+    for edge in range(4):
+        origin=center.copy()
+        for distance in (.32,.64,.96,1.28,1.60,1.92):
+            center=origin+yaw(angle)@V((0,distance,0))
+            beat(11,center+yaw(angle)@V(((-1,1)[side]*.108,0,0)),side)
+            side=1-side
+        arc_start=center.copy()
+        entry_angle=angle
+        for k in range(1,4):
+            theta=k*math.pi/6  # three 30-degree forward steps around the bend
+            delta=V((.62*(1-math.cos(theta)),.62*math.sin(theta),0))
+            center=arc_start+yaw(entry_angle)@delta
+            target=entry_angle-theta
+            beat(10,center+yaw(target)@V(((-1,1)[side]*.108,0,0)),side,target)
+            side=1-side
+    beat(12)
+    return [p.copy() for p in feet]
+
+first_contacts=[center+V((s*.108,0,0)) for s in (-1,1)]
+last_contacts=build_rounded_route(first_contacts)
+build_rounded_route(last_contacts)
 samples=[]
 foot_yaw=[0.,0.]
 for frames,start,side,end,a,b,moving in beats:
