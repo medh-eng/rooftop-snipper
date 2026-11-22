@@ -73,3 +73,15 @@ This feature is in
 its earlier dependencies are Phase 2 PR #1 and Phase 3 PR #2.
 The Unity camera must still be visually checked and the APK must be
 compiled and profiled on the intended Android phone.
+
+
+### Rich game roadmap
+
+The proposed next-stage design lives in
+[Harbor Watch — Rich Game Roadmap](docs/harbor-watch/RICH_GAME_ROADMAP.md).
+It details three district art directions, five mission archetypes,
+narrative progression, daily/weekly challenges, player-friendly rewards,
+technical architecture, Android performance gates and acceptance criteria.
+This is a **production plan**, not a claim that expansion features are built.
+The next coding priority remains validating the current Unity feature stack
+on a real Android handset before large-scale art/content expansion.
