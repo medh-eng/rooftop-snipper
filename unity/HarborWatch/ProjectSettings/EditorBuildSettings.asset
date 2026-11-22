@@ -8,6 +8,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/WalkReview.unity
     guid: dc49974e4e365d5992d5f834fddb9151
+  - enabled: 1
+    path: Assets/Scenes/HarborCrowd.unity
+    guid: d8274ce9a72c473a9e2bc34245311489
   - enabled: 0
     path: Assets/Scenes/SampleScene.unity
     guid: 99c9720ab356a0642a771bea13969a05
