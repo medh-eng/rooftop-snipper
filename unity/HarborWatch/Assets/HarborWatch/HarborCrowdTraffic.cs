@@ -144,12 +144,13 @@ namespace HarborWatch
             public Path route;
             public AnimationClip motion;
             public bool visible, jogging;
-            public float distance, time, speedMultiplier, respawnDelay;
+            public float distance, time, speedMultiplier, respawnDelay, currentSpeed;
             public int appearance;
         }
 
         readonly List<Material> ownedMaterials = new List<Material>();
         readonly Agent[] agents = new Agent[PoolSize];
+        readonly float[] plannedSpeeds = new float[PoolSize];
         readonly Path[] routes = new Path[Waypoints.Length];
         readonly System.Random random = new System.Random(1307);
         AnimationClip walk, jog;
@@ -355,6 +356,7 @@ namespace HarborWatch
             a.speedMultiplier = .83f + .34f * (float)random.NextDouble();
             a.distance = a.route.Length * Mathf.Clamp01(startFraction);
             a.time = (float)random.NextDouble() * a.motion.length;
+            a.currentSpeed = (a.jogging ? JogMetresPerSecond : WalkMetresPerSecond) * a.speedMultiplier;
             a.respawnDelay = 0;
             a.visible = true;
             a.entity.SetActive(true);
@@ -384,20 +386,75 @@ namespace HarborWatch
             }
         }
 
+        bool EntranceClear(Vector3 entrance)
+        {
+            foreach (var other in agents)
+            {
+                if (other != null && other.visible &&
+                    Vector3.SqrMagnitude(other.anchor.position - entrance) < 1.4f * 1.4f)
+                    return false;
+            }
+            return true;
+        }
+
         public void Step(float seconds)
         {
             float dt = Mathf.Min(seconds, .06f); // no large leaps after editor pauses.
-            foreach (var a in agents)
+            // Plan all movements from the same frame snapshot, not the positions
+            // already updated by an earlier pedestrian in this loop.
+            System.Array.Clear(plannedSpeeds, 0, plannedSpeeds.Length);
+            for (int i = 0; i < agents.Length; i++)
             {
+                Agent a = agents[i];
+                if (a == null || !a.visible) continue;
+                float nominal = (a.jogging ? JogMetresPerSecond : WalkMetresPerSecond)
+                    * a.speedMultiplier;
+                float factor = 1f;
+                Vector3 forward = a.route.Forward(a.distance);
+                for (int j = 0; j < agents.Length; j++)
+                {
+                    if (i == j || agents[j] == null || !agents[j].visible) continue;
+                    Agent b = agents[j];
+                    float neighbourNominal =
+                        (b.jogging ? JogMetresPerSecond : WalkMetresPerSecond)
+                        * b.speedMultiplier;
+                    factor = Mathf.Min(factor, HarborCrowdSpacing.YieldFactor(
+                        a.anchor.position, forward, nominal, i,
+                        b.anchor.position, b.route.Forward(b.distance),
+                        neighbourNominal, j));
+                }
+                plannedSpeeds[i] = nominal * factor;
+            }
+
+            for (int i = 0; i < agents.Length; i++)
+            {
+                Agent a = agents[i];
                 if (a == null) continue;
                 if (!a.visible)
                 {
                     a.respawnDelay -= dt;
-                    if (a.respawnDelay <= 0) StartJourney(a, ChooseRoute(), 0);
+                    if (a.respawnDelay <= 0f)
+                    {
+                        int routeIndex = ChooseRoute();
+                        if (EntranceClear(routes[routeIndex].At(0f)))
+                            StartJourney(a, routeIndex, 0f);
+                        else
+                            a.respawnDelay = .6f;
+                    }
                     continue;
                 }
-                a.distance += dt * (a.jogging ? JogMetresPerSecond : WalkMetresPerSecond) * a.speedMultiplier;
-                a.time = Mathf.Repeat(a.time + dt * a.speedMultiplier, a.motion.length);
+
+                float nominal = (a.jogging ? JogMetresPerSecond : WalkMetresPerSecond)
+                    * a.speedMultiplier;
+                // Decelerate quickly for crossings; accelerate more gently.
+                float target = plannedSpeeds[i];
+                float responsiveness = target < a.currentSpeed ? 3.5f : 1.35f;
+                a.currentSpeed = Mathf.MoveTowards(a.currentSpeed, target, responsiveness * dt);
+                a.distance += a.currentSpeed * dt;
+                // Slow the gait when yielding. This keeps planted shoes closer
+                // to the same paving joint than advancing the clip at full speed.
+                float baseSpeed = a.jogging ? JogMetresPerSecond : WalkMetresPerSecond;
+                a.time = Mathf.Repeat(a.time + dt * a.currentSpeed / baseSpeed, a.motion.length);
                 if (a.distance >= a.route.Length)
                 {
                     a.entity.SetActive(false);
