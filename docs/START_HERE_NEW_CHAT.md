@@ -1,3 +1,19 @@
+# Start here (new chat)
+
+**Current direction:** *Red Signal: Find the One* on branch `redesign/find-the-one`.
+Read [PLAN.md](../PLAN.md), [STATUS.md](../STATUS.md) and the newest entry in
+[LOG.md](../LOG.md) first. Rules live in `game/case-engine.js` and are mirrored in
+`unity/HarborWatch/Assets/HarborWatch/Core/CaseEngine.cs`; keep them identical
+(`node tools/case-vectors.cjs`, then `dotnet run --project tools/core-tests`).
+Run `dotnet build tools/unity-compile-check` before committing Unity scripts.
+
+Paste this into a new chat:
+
+> Read PLAN.md, STATUS.md and LOG.md on the redesign/find-the-one branch of
+> medh-eng/rooftop-snipper. Continue from the "Next" list in the newest LOG entry.
+
+---
+
 # Harbor Watch · start here
 
 ## Current milestones

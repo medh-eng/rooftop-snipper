@@ -65,7 +65,8 @@ namespace HarborWatch
 
         // Four access points: west street, east street, terminal door and ferry gangway.
         // Endpoints sit beyond the set edges, so no visitor teleports on the paving.
-        static readonly Vector3[][] Waypoints =
+        // internal: CaseCrowd (Find the One) walks the same tested routes.
+        internal static readonly Vector3[][] Waypoints =
         {
             Track(-12.4f,-1.2f, -8.1f,-1.2f, -5.1f,-2.0f, -.5f,-2.9f,
                   4.0f,-1.6f, 8.1f,-1.2f, 12.5f,-1.2f),        // west -> east
@@ -99,7 +100,7 @@ namespace HarborWatch
             return result;
         }
 
-        sealed class Path
+        internal sealed class Path
         {
             readonly Vector3[] samples;
             readonly float[] metres;
@@ -377,10 +378,11 @@ namespace HarborWatch
             {
                 float x = side * .114f;
                 Vector3 rear = new Vector3(x,.077f,.05f);
-                Vector3 shoulder = new Vector3(x,.195f,.174f);
+                // Not "shoulder": that name is declared later in this method (CS0136).
+                Vector3 strapShoulder = new Vector3(x,.195f,.174f);
                 Vector3 front = new Vector3(x,.15f,.298f);
-                Strap(a.backpack, rear, shoulder, a.accessoryMaterial);
-                Strap(a.backpack, shoulder, front, a.accessoryMaterial);
+                Strap(a.backpack, rear, strapShoulder, a.accessoryMaterial);
+                Strap(a.backpack, strapShoulder, front, a.accessoryMaterial);
                 Strap(a.backpack, front, new Vector3(x,-.076f,.299f), a.accessoryMaterial);
             }
 

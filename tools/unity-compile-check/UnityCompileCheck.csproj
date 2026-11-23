@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Compile-checks every Harbor Watch C# script (runtime + Editor) without Unity,
+       against permissive API stand-ins. Catches syntax and structural errors
+       (e.g. CS0136, CS1027) before you open the Editor:
+         dotnet build tools/unity-compile-check
+       Passing here does not prove Unity behaviour; Unity remains the authority. -->
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <DefineConstants>UNITY_EDITOR</DefineConstants>
+    <NoWarn>CS0649;CS0169;CS0414;CS0067;CS0162;CS0219</NoWarn>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="UnityStubs.cs" />
+    <Compile Include="EditorStubs.cs" />
+    <Compile Include="../../unity/HarborWatch/Assets/HarborWatch/*.cs" />
+    <Compile Include="../../unity/HarborWatch/Assets/HarborWatch/Core/**/*.cs" />
+    <Compile Include="../../unity/HarborWatch/Assets/HarborWatch/FindTheOne/**/*.cs" />
+    <Compile Include="../../unity/HarborWatch/Assets/HarborWatch/Editor/**/*.cs" />
+  </ItemGroup>
+</Project>

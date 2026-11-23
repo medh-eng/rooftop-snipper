@@ -21,3 +21,20 @@ jobs:
           node "$RUNNER_TEMP/signal-browser/node_modules/playwright/cli.js" install --with-deps chromium
       - name: Play the campaign and verify touch controls
         run: NODE_PATH="$RUNNER_TEMP/signal-browser/node_modules" node --test tests/campaign-browser.cjs
+      - name: Play Find the One (phone touch, wrong tags, daily case)
+        run: NODE_PATH="$RUNNER_TEMP/signal-browser/node_modules" node --test tests/find-the-one-browser.cjs
+  unity-csharp:
+    # Unity itself is not available on GitHub's free runners. These steps run
+    # the shared case-engine tests (C# = JS parity) and compile every Unity
+    # script against API stand-ins, which catches syntax errors early.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Case engine tests (Unity EditMode tests, run outside Unity)
+        run: dotnet run --project tools/core-tests
+      - name: Compile-check all Unity scripts
+        run: dotnet build tools/unity-compile-check

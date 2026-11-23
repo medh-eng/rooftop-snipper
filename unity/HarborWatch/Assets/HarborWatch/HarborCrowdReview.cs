@@ -16,6 +16,12 @@ namespace HarborWatch
         // sets this flag; it reuses the same concourse/crowd without review UI.
         public bool missionMode;
         public bool droneMode; // Only set in the separate Phase 4 review scene.
+        // Set in FindTheOne.unity: same concourse, but the case crowd and UI
+        // belong to FindTheOneController (no ambient HarborCrowdTraffic).
+        public bool findTheOneMode;
+        public HarborEnvironment Environment { get { return environment; } }
+        public Material SourceMaterial { get { return sourceMaterial; } }
+        FindTheOneController findTheOne;
         public Transform ConcourseRoot { get { return world ? world.transform : null; } }
         public HarborCrowdTraffic Traffic { get { return stream; } }
         HarborMissionController mission;
@@ -50,20 +56,31 @@ namespace HarborWatch
             BuildConcourse();
             environment = world.AddComponent<HarborEnvironment>();
             environment.Initialise(world.transform, sourceMaterial);
+            if (findTheOneMode)
+            {
+                StartAmbience();
+                findTheOne = gameObject.AddComponent<FindTheOneController>();
+                return;
+            }
             stream = gameObject.AddComponent<HarborCrowdTraffic>();
             if (!stream.Initialize(world.transform, sourceMaterial))
             {
                 Fail("Crowd animation assets not loaded. Check CrowdWalk.fbx and CrowdJog.fbx.");
                 return;
             }
+            StartAmbience();
+            PositionCamera();
+            if (missionMode) mission = gameObject.AddComponent<HarborMissionController>();
+            else if (droneMode) droneReview = gameObject.AddComponent<HarborDroneReview>();
+        }
+
+        void StartAmbience()
+        {
             ambience = world.AddComponent<AudioSource>();
             ambience.playOnAwake = false;
             ambience.loop = true;
             ambience.clip = Resources.Load<AudioClip>("MeridianAmbience");
             if (ambience.clip) ambience.Play();
-            PositionCamera();
-            if (missionMode) mission = gameObject.AddComponent<HarborMissionController>();
-            else if (droneMode) droneReview = gameObject.AddComponent<HarborDroneReview>();
         }
 
         public void LaunchShiftFlight()
@@ -263,6 +280,11 @@ namespace HarborWatch
 
         void Update()
         {
+            if (error == null && findTheOneMode)
+            {
+                if (findTheOne && findTheOne.IsRunning) environment.Step(Time.deltaTime);
+                return; // Camera, crowd, input and UI belong to FindTheOneController.
+            }
             if (error != null || !stream) return;
             if (missionMode)
             {
@@ -311,7 +333,8 @@ namespace HarborWatch
         void LateUpdate()
         {
             if (!ambience || !ambience.clip) return;
-            bool playing = missionMode ? mission && mission.IsRunning :
+            bool playing = findTheOneMode ? findTheOne && findTheOne.IsRunning :
+                missionMode ? mission && mission.IsRunning :
                 droneMode ? droneReview && droneReview.IsPlaying : !paused;
             if (playing && !ambience.isPlaying) ambience.UnPause();
             else if (!playing && ambience.isPlaying) ambience.Pause();
@@ -320,6 +343,7 @@ namespace HarborWatch
         void OnGUI()
         {
             if ((missionMode || droneMode) && error == null) return;
+            if (findTheOneMode && error == null) return;
             if (error != null)
             {
                 GUI.Box(new Rect(8, 8, Screen.width - 16, 72), error);

@@ -1,5 +1,17 @@
 # Rooftop Sniper · Red Signal
 
+> **New direction (23 Nov 2026): _Red Signal: Find the One_.** Targets are no
+> longer marked. You read a dossier, watch the crowd, provoke reactions and tag
+> the one courier who matches every line. One shot, plus one more if you're wrong.
+>
+> * **Play the prototype:** open [`game/index.html`](game/index.html) (phone or PC).
+> * **Unity mobile build:** `unity/HarborWatch` → `Assets/Scenes/FindTheOne.unity`.
+> * **Plan · status · log:** [PLAN.md](PLAN.md) · [STATUS.md](STATUS.md) · [LOG.md](LOG.md)
+> * **Checks:** `node --test tests/*.test.cjs` · `dotnet run --project tools/core-tests` · `dotnet build tools/unity-compile-check`
+>
+> The sections below describe the original marked-target campaign (root `index.html`)
+> and the earlier Harbor Watch phases, kept for reference.
+
 A single-player, touch-friendly arcade campaign set in three fictional cities. A rooftop operator tracks red-marked members of the Red Signal sabotage group through moving crowds. Later contracts put the player in a drone camera to disable rogue aircraft. All equipment, scoring and targeting use fictional arcade rules.
 
 ## Play

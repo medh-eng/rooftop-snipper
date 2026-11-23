@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#0d1214">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="description" content="Red Signal: Find the One. Read the dossier, watch the crowd, tag the one courier. One shot.">
+  <title>Red Signal · Find the One</title>
+  <link rel="icon" href="../assets/ui/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <script defer src="case-engine.js"></script>
+  <script defer src="game.js"></script>
+</head>
+<body>
+  <div id="app">
+    <canvas id="view" aria-label="Rooftop view of the square. Tap a person to select them."></canvas>
+
+    <!-- In-case HUD -->
+    <div id="hud" hidden>
+      <header class="hud-top">
+        <button class="icon-btn" id="pause-btn" aria-label="Pause">❚❚</button>
+        <div class="hud-title"><small id="hud-district">PORT MERIDIAN</small><b id="hud-case">First Light</b></div>
+        <div class="hud-timer" id="hud-timer">1:10</div>
+        <div class="hud-shots" id="hud-shots" aria-label="Shots left"></div>
+      </header>
+      <div class="heat" aria-hidden="true"><i id="heat-fill"></i><span>LENS HEAT</span></div>
+      <section class="dossier" id="dossier" aria-label="Dossier"></section>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+      <div class="coach" id="coach" hidden></div>
+      <footer class="controls">
+        <div class="tools">
+          <button class="tool" id="lens-btn"><span>🔍</span><b>Lens</b></button>
+          <button class="tool" id="mark-btn"><span>❓</span><b>Mark</b></button>
+          <button class="tool" id="noise-btn"><span>📣</span><b id="noise-label">Horn</b></button>
+          <button class="tool" id="ping-btn"><span>📡</span><b>Ping</b></button>
+        </div>
+        <button class="fire" id="fire-btn" aria-label="Hold to steady, release to tag"><span>TAG</span><small>hold</small></button>
+      </footer>
+    </div>
+
+    <!-- Menus -->
+    <section class="screen" id="title-screen">
+      <div class="title-bg"></div>
+      <div class="title-card">
+        <img src="../assets/ui/mark.svg" alt="" width="54" height="54">
+        <h1>RED SIGNAL</h1>
+        <p class="tagline">FIND THE ONE</p>
+        <p class="pitch">A courier is hiding in the crowd. You get a dossier, a lens and one clean shot.</p>
+        <button class="btn primary" id="daily-btn">Daily Case</button>
+        <button class="btn" id="campaign-btn">Campaign</button>
+        <button class="btn ghost" id="howto-btn">How to play</button>
+        <p class="streak" id="streak"></p>
+      </div>
+      <button class="icon-btn sound" id="sound-btn" aria-label="Toggle sound">🔊</button>
+      <p class="build">Prototype · browser build of the Harbor Watch mobile game</p>
+    </section>
+
+    <section class="screen" id="cases-screen" hidden>
+      <header class="screen-head"><button class="icon-btn" data-go="title">←</button><h2>Campaign</h2><span id="star-total"></span></header>
+      <div class="case-list" id="case-list"></div>
+    </section>
+
+    <section class="screen" id="brief-screen" hidden>
+      <div class="brief-art" id="brief-art"></div>
+      <div class="brief-card">
+        <span class="eyebrow" id="brief-eyebrow">CASE 01 · PORT MERIDIAN</span>
+        <h2 id="brief-name">First Light</h2>
+        <p id="brief-text"></p>
+        <ul class="brief-facts" id="brief-facts"></ul>
+        <div class="row"><button class="btn ghost" data-go="back">Back</button><button class="btn primary" id="begin-btn">Take position</button></div>
+      </div>
+    </section>
+
+    <section class="screen" id="result-screen" hidden>
+      <div class="result-card">
+        <span class="eyebrow" id="result-eyebrow">CASE CLOSED</span>
+        <h2 id="result-title">Courier tagged</h2>
+        <div class="stars" id="result-stars"></div>
+        <p id="result-line"></p>
+        <table class="breakdown" id="result-table"></table>
+        <pre class="share" id="result-share" hidden></pre>
+        <div class="row wrap" id="result-actions"></div>
+      </div>
+    </section>
+
+    <section class="screen" id="howto-screen" hidden>
+      <header class="screen-head"><button class="icon-btn" data-go="title">←</button><h2>How to play</h2><span></span></header>
+      <div class="howto">
+        <div><b>1 · Read the dossier</b><p>Intel arrives line by line. The first line is free; the rest drop every few seconds. Tap a locked line to buy it now for 8 seconds.</p></div>
+        <div><b>2 · Watch the crowd</b><p>Drag to look around. Use the lens to zoom, but keep it short: hold it too long and your glint warns the courier.</p></div>
+        <div><b>3 · Provoke</b><p><b>Noise</b> makes everyone stop and look, except a trained courier and anyone wearing headphones. <b>Ping</b> hits the cell radio: every Red Signal member touches their ear.</p></div>
+        <div><b>4 · Tag</b><p>Tap a person to select them. Hold TAG until the ring locks, then release. Wait for a clear line: passers-by block the shot.</p></div>
+        <div><b>5 · Be brave</b><p>Tagging early, before all the intel arrives, multiplies your score. A wrong tag spooks the courier: you have one more shot and 15 seconds.</p></div>
+        <div><b>Daily Case</b><p>One case a day, identical for every player. Share your result without spoilers.</p></div>
+      </div>
+    </section>
+
+    <section class="screen dim" id="pause-screen" hidden>
+      <div class="result-card small">
+        <h2>Paused</h2>
+        <div class="row wrap"><button class="btn primary" id="resume-btn">Resume</button><button class="btn" id="restart-btn">Restart</button><button class="btn ghost" id="quit-btn">Quit case</button></div>
+      </div>
+    </section>
+  </div>
+  <noscript>Enable JavaScript to play Red Signal.</noscript>
+</body>
+</html>
