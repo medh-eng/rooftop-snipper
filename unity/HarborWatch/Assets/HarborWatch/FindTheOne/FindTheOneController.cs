@@ -313,7 +313,7 @@ namespace HarborWatch
             float dist = Vector3.Distance(Roof, target.Chest);
             foreach (var q in crowd.Walkers)
             {
-                if (q == target || Vector3.Distance(Roof, q.Chest) >= dist) continue;
+                if (q == target || !q.Present || Vector3.Distance(Roof, q.Chest) >= dist) continue;
                 Vector3 feet = cam.WorldToScreenPoint(q.Feet), head = cam.WorldToScreenPoint(q.HeadTop);
                 if (feet.z <= 0f) continue;
                 float h = head.y - feet.y, w = h * .38f;
@@ -353,7 +353,7 @@ namespace HarborWatch
                 PlayerPrefs.SetInt(key + ".Score", Mathf.Max(result.Score, PlayerPrefs.GetInt(key + ".Score", 0)));
             }
             PlayerPrefs.Save();
-            if (!win) { selected = crowd.Courier; targetFov = 30f; }   // show who it was
+            if (!win) { crowd.EnsurePresent(crowd.Courier); selected = crowd.Courier; targetFov = 30f; }   // show who it was
             Invoke("ShowResult", win ? .3f : 1.8f);
         }
 
@@ -412,6 +412,7 @@ namespace HarborWatch
             if (shotT >= 0f) { UpdateShot(realDt); crowd.Step(dt); return; }
             crowd.Step(dt);
             if (over) return;
+            if (selected != null && !selected.Present) { selected = null; holding = locked = false; }   // walked off the set
             t += dt; timeLeft -= dt;
             if (revealed < cfg.Clues.Length && t >= nextReveal) Reveal(false);
 
@@ -521,7 +522,7 @@ namespace HarborWatch
         {
             Vector3 feet = cam.WorldToScreenPoint(w.Feet), head = cam.WorldToScreenPoint(w.HeadTop);
             r = new Rect();
-            if (feet.z <= 0f) return false;
+            if (!w.Present || feet.z <= 0f) return false;
             float h = head.y - feet.y, width = Mathf.Max(h * .42f, 18f * u);
             r = new Rect(feet.x - width * .5f, Screen.height - head.y, width, h);
             return true;
@@ -553,6 +554,7 @@ namespace HarborWatch
                 float near = 40f * u;
                 foreach (var w in crowd.Walkers)
                 {
+                    if (!w.Present) continue;
                     Vector3 c = cam.WorldToScreenPoint(w.Chest);
                     if (c.z <= 0f) continue;
                     float d = Vector2.Distance(new Vector2(c.x, Screen.height - c.y), gui);

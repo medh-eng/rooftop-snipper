@@ -42,18 +42,33 @@ namespace HarborWatch
             new Color(.82f, .58f, .43f), new Color(.51f, .33f, .25f)
         };
 
+        /// <summary>One arm of the rig: reach target and the wrist (the rig has no hand bone).</summary>
+        public sealed class Arm
+        {
+            public Transform Upper, Fore;
+            public Vector3 ForeAxis;      // forearm-local axis that points at the hand
+            public float ForeLength;      // elbow to the middle of the grip
+            public float Side;            // +1 = along Anchor.right, -1 = along -Anchor.right
+            public float Weight;          // 0 = clip pose, 1 = fully reaching
+        }
+
         public sealed class Walker
         {
             public Person Person;
             public GameObject Entity;
             public Transform Anchor, Hips, Head;
             public GameObject Cap, CapPeak, Backpack, Briefcase, Headphones, Phone;
-            public Material PhoneMaterial;
+            public Material PhoneMaterial, BeaconMaterial;
+            public Arm RightArm, LeftArm;
             public readonly Dictionary<string, Material> Clothing = new Dictionary<string, Material>();
             internal HarborCrowdTraffic.Path Route;
             internal int RouteIndex;
-            internal float Distance, AnimTime, CurrentSpeed;
+            internal float Distance, Phase01, CurrentSpeed, Yaw, YawVelocity, AwayLeft;
+            internal float HeadYaw, HeadPitch, HeadRoll;
+            internal bool Settled;
             public bool Moving, Flinching, OnEar, Wrong, Marked;
+            /// <summary>False while the person has walked off the set and is about to re-enter.</summary>
+            public bool Present = true;
             public Vector3 Chest { get { return Hips.position + Vector3.up * .38f; } }
             public Vector3 HeadTop { get { return Head.position + Vector3.up * .3f; } }
             public Vector3 Feet { get { return Anchor.position; } }
@@ -92,6 +107,22 @@ namespace HarborWatch
             return 'F';
         }
 
+        static bool IsFerry(Vector3 p) { return Mathf.Abs(p.x - 4.4f) < .05f && Mathf.Abs(p.z + 9f) < .05f; }
+
+        /// <summary>
+        /// The tested routes, with one extra waypoint on the gangway centre line for the
+        /// ferry routes so nobody brushes the pier railing (tools/route-check.cjs checks
+        /// every route against every solid object of the concourse).
+        /// </summary>
+        static Vector3[] GatedControls(Vector3[] track)
+        {
+            var list = new List<Vector3>(track);
+            var gate = new Vector3(4.4f, 0f, -7.0f);
+            if (IsFerry(list[0])) list.Insert(1, gate);
+            if (IsFerry(list[list.Count - 1])) list.Insert(list.Count - 1, gate);
+            return list.ToArray();
+        }
+
         public bool Build(Transform concourse, Material sourceMaterial, Case kase)
         {
             Clear();
@@ -109,9 +140,10 @@ namespace HarborWatch
             {
                 foreach (var track in HarborCrowdTraffic.Waypoints)
                 {
-                    routes.Add(new HarborCrowdTraffic.Path(track));
-                    routeStartSide.Add(Side(track[0]));
-                    routeEndSide.Add(Side(track[track.Length - 1]));
+                    var gated = GatedControls(track);
+                    routes.Add(new HarborCrowdTraffic.Path(gated));
+                    routeStartSide.Add(Side(gated[0]));
+                    routeEndSide.Add(Side(gated[gated.Length - 1]));
                 }
             }
             // Presentation randomness only (skin tone, denim, route choice);
@@ -135,9 +167,12 @@ namespace HarborWatch
                 w.Route = routes[w.RouteIndex];
                 float along = Mathf.Clamp01((float)((w.Person.X - 90.0) / 1420.0));
                 w.Distance = w.Route.Length * (.08f + .84f * along);
-                w.AnimTime = (float)(w.Person.Offset % walk.length);
+                w.Phase01 = Mathf.Repeat((float)(w.Person.Offset % walk.length) / walk.length, 1f);
                 w.CurrentSpeed = NominalSpeed(w);
-                Place(w, 0f);
+                w.Yaw = HeadingOf(w);
+                w.Anchor.position = w.Route.At(w.Distance);
+                w.Anchor.rotation = Quaternion.Euler(0f, w.Yaw, 0f);
+                Pose(w, 0f, false, false, false, 0f);
             }
             return true;
         }
@@ -151,14 +186,18 @@ namespace HarborWatch
             model.SetParent(w.Anchor, false);
             w.Entity = Instantiate(prefab, model);
             foreach (var animation in w.Entity.GetComponentsInChildren<Animation>(true)) animation.enabled = false;
-            Transform chest = null, leftFoot = null, rightForearm = null;
+            Transform chest = null, leftFoot = null;
+            Transform upperR = null, upperL = null, foreR = null, foreL = null;
             foreach (var bone in w.Entity.GetComponentsInChildren<Transform>(true))
             {
                 if (bone.name == "Hips") w.Hips = bone;
                 if (bone.name == "Head") w.Head = bone;
                 if (bone.name == "Chest") chest = bone;
                 if (bone.name == "Foot.L") leftFoot = bone;
-                if (bone.name == "Forearm.R") rightForearm = bone;
+                if (bone.name == "UpperArm.R") upperR = bone;
+                if (bone.name == "UpperArm.L") upperL = bone;
+                if (bone.name == "Forearm.R") foreR = bone;
+                if (bone.name == "Forearm.L") foreL = bone;
             }
             if (!w.Hips || !w.Head || !chest || !leftFoot)
             {
@@ -176,9 +215,61 @@ namespace HarborWatch
                     Vector3.SignedAngle(forward, w.Anchor.forward, w.Anchor.up), w.Anchor.up) * model.rotation;
             walk.SampleAnimation(w.Entity, 0f);
 
+            w.RightArm = MakeArm(w, upperR, foreR);
+            w.LeftArm = MakeArm(w, upperL, foreL);
             Paint(w);
-            BuildAccessories(w, chest, rightForearm);
+            BuildAccessories(w, chest);
             return w;
+        }
+
+        // The rig has no hand bone, so the forearm's long axis is found from the clip pose
+        // (the local axis best aligned with shoulder -> elbow) and the hand sits one grip-length
+        // along it. Everything is measured in world space, so it is independent of bone roll.
+        static Arm MakeArm(Walker w, Transform upper, Transform fore)
+        {
+            if (!upper || !fore) return null;
+            Vector3 dir = (fore.position - upper.position).normalized;
+            Vector3[] axes = { Vector3.right, Vector3.left, Vector3.up, Vector3.down, Vector3.forward, Vector3.back };
+            Vector3 best = Vector3.up; float bestDot = -2f;
+            foreach (var axis in axes)
+            {
+                float d = Vector3.Dot(fore.TransformDirection(axis), dir);
+                if (d > bestDot) { bestDot = d; best = axis; }
+            }
+            float upperLength = (fore.position - upper.position).magnitude;
+            return new Arm
+            {
+                Upper = upper, Fore = fore, ForeAxis = best,
+                ForeLength = Mathf.Clamp(upperLength * .95f, .2f, .3f),
+                Side = Mathf.Sign(Vector3.Dot(fore.position - w.Hips.position, w.Anchor.right) + .0001f)
+            };
+        }
+
+        static Vector3 Wrist(Arm a) { return a.Fore.position + a.Fore.TransformDirection(a.ForeAxis) * a.ForeLength; }
+
+        /// <summary>
+        /// Two-bone reach by world-space swing rotations, blended in position space so the
+        /// arm lifts and drops smoothly. Returns the wrist afterwards.
+        /// </summary>
+        static Vector3 Reach(Arm a, Vector3 target, Vector3 pole, float weight)
+        {
+            if (a == null) return Vector3.zero;
+            if (weight <= .001f) return Wrist(a);
+            Vector3 shoulder = a.Upper.position, elbow = a.Fore.position;
+            float l1 = (elbow - shoulder).magnitude, l2 = a.ForeLength;
+            Vector3 aim = Vector3.Lerp(Wrist(a), target, Mathf.Clamp01(weight)) - shoulder;
+            float d = Mathf.Clamp(aim.magnitude, Mathf.Abs(l1 - l2) + .01f, l1 + l2 - .005f);
+            Vector3 dir = aim.normalized;
+            float along = (l1 * l1 - l2 * l2 + d * d) / (2f * d);
+            float bend = Mathf.Sqrt(Mathf.Max(0f, l1 * l1 - along * along));
+            Vector3 sideways = Vector3.ProjectOnPlane(pole, dir);
+            sideways = sideways.sqrMagnitude < 1e-4f ? Vector3.Cross(dir, Vector3.up).normalized : sideways.normalized;
+            Vector3 newElbow = shoulder + dir * along + sideways * bend;
+            a.Upper.rotation = Quaternion.FromToRotation(elbow - shoulder, newElbow - shoulder) * a.Upper.rotation;
+            Vector3 hand = shoulder + dir * d;
+            a.Fore.rotation = Quaternion.FromToRotation(
+                a.Fore.TransformDirection(a.ForeAxis), (hand - a.Fore.position).normalized) * a.Fore.rotation;
+            return Wrist(a);
         }
 
         Material NewMaterial(Color colour)
@@ -258,7 +349,7 @@ namespace HarborWatch
             return piece;
         }
 
-        void BuildAccessories(Walker w, Transform chest, Transform rightForearm)
+        void BuildAccessories(Walker w, Transform chest)
         {
             var p = w.Person;
             // Headwear: cap (crown + peak) or beanie (taller crown, no peak).
@@ -284,16 +375,23 @@ namespace HarborWatch
                 Piece(w.Backpack, "Pack", PrimitiveType.Sphere, Vector3.zero, new Vector3(.285f, .356f, .169f), bagMat, Vector3.zero);
                 Piece(w.Backpack, "Pocket", PrimitiveType.Sphere, new Vector3(0, -.056f, -.064f), new Vector3(.224f, .175f, .086f), bagMat, Vector3.zero);
             }
-            // Briefcase held in the right hand (end of Forearm.R).
-            if (p.Carry == 2 && rightForearm)
+            // Briefcase: hangs from the grip in the right hand. It is not parented to the arm bone
+            // (that made it swing like a rigid extension of the forearm); Pose() hangs it from the
+            // wrist, keeps it upright and swings it only a few degrees like a pendulum.
+            // Origin = the grip. Real size: 42 x 30 x 8.5 cm.
+            if (p.Carry == 2 && w.RightArm != null)
             {
                 var caseMat = NewMaterial(new Color(.36f, .23f, .13f));
-                Vector3 hand = rightForearm.position + rightForearm.up * .225f;
+                var trimMat = NewMaterial(new Color(.22f, .14f, .08f));
+                var metalMat = NewMaterial(new Color(.75f, .61f, .41f));
                 var pivot = new GameObject("Briefcase");
-                pivot.transform.SetPositionAndRotation(hand, w.Anchor.rotation);
-                pivot.transform.SetParent(rightForearm, true);
-                Piece(pivot, "Case", PrimitiveType.Cube, new Vector3(.02f, -.15f, 0), new Vector3(.07f, .24f, .34f), caseMat, Vector3.zero);
-                Piece(pivot, "Handle", PrimitiveType.Cube, new Vector3(.02f, -.02f, 0), new Vector3(.025f, .03f, .1f), caseMat, Vector3.zero);
+                pivot.transform.SetParent(w.Anchor, false);
+                Piece(pivot, "Case", PrimitiveType.Cube, new Vector3(0, -.205f, 0), new Vector3(.085f, .30f, .42f), caseMat, Vector3.zero);
+                Piece(pivot, "Seam", PrimitiveType.Cube, new Vector3(0, -.115f, 0), new Vector3(.0875f, .012f, .425f), trimMat, Vector3.zero);
+                Piece(pivot, "Lock", PrimitiveType.Cube, new Vector3(0, -.1f, 0), new Vector3(.089f, .028f, .045f), metalMat, Vector3.zero);
+                Piece(pivot, "Handle bar", PrimitiveType.Cube, new Vector3(0, -.032f, 0), new Vector3(.02f, .014f, .13f), trimMat, Vector3.zero);
+                Piece(pivot, "Handle post A", PrimitiveType.Cube, new Vector3(0, -.044f, .065f), new Vector3(.02f, .026f, .014f), trimMat, Vector3.zero);
+                Piece(pivot, "Handle post B", PrimitiveType.Cube, new Vector3(0, -.044f, -.065f), new Vector3(.02f, .026f, .014f), trimMat, Vector3.zero);
                 w.Briefcase = pivot;
             }
             // Headphones: bright band and ear cups, visible through the lens.
@@ -307,10 +405,16 @@ namespace HarborWatch
                 for (int side = -1; side <= 1; side += 2)
                     Piece(w.Headphones, "Band side", PrimitiveType.Cube, new Vector3(side * .1f, .08f, 0), new Vector3(.022f, .16f, .04f), phonesMat, Vector3.zero);
             }
-            // Phone: shown for the phone habit (bright screen) and the ping (red, at the ear).
+            // Phone, real size 7 x 14.5 x 0.9 cm. It lives in the hand (Pose() places it at the wrist):
+            // screen towards the face when reading, held flat against the ear for the ping, where the
+            // back beacon blinks red so the call is visible from the roof.
             w.PhoneMaterial = NewMaterial(new Color(.8f, .93f, 1f));
-            w.Phone = Pivot("Phone", w.Head, w.Anchor, new Vector3(0, .1f, .16f));
-            Piece(w.Phone, "Screen", PrimitiveType.Cube, Vector3.zero, new Vector3(.045f, .085f, .012f), w.PhoneMaterial, new Vector3(-20, 0, 0));
+            w.BeaconMaterial = NewMaterial(new Color(.3f, .05f, .04f));
+            w.Phone = new GameObject("Phone");
+            w.Phone.transform.SetParent(w.Anchor, false);
+            Piece(w.Phone, "Body", PrimitiveType.Cube, Vector3.zero, new Vector3(.07f, .145f, .009f), NewMaterial(new Color(.07f, .08f, .09f)), Vector3.zero);
+            Piece(w.Phone, "Screen", PrimitiveType.Cube, new Vector3(0, 0, .0052f), new Vector3(.062f, .13f, .002f), w.PhoneMaterial, Vector3.zero);
+            Piece(w.Phone, "Beacon", PrimitiveType.Sphere, new Vector3(0, .04f, -.007f), new Vector3(.034f, .034f, .014f), w.BeaconMaterial, Vector3.zero);
             w.Phone.SetActive(false);
         }
 
@@ -336,6 +440,7 @@ namespace HarborWatch
         public void Step(float seconds)
         {
             float dt = Mathf.Min(seconds, .06f);
+            if (dt <= 0f) return;
             clock += dt;
             bool noise = NoiseWindow, ping = PingWindow;
 
@@ -343,12 +448,13 @@ namespace HarborWatch
             for (int i = 0; i < Walkers.Count; i++)
             {
                 var a = Walkers[i];
+                if (!a.Present) { planned[i] = 0f; continue; }
                 float nominal = NominalSpeed(a);
                 float factor = 1f;
                 Vector3 forward = a.Route.Forward(a.Distance);
                 for (int j = 0; j < Walkers.Count; j++)
                 {
-                    if (i == j) continue;
+                    if (i == j || !Walkers[j].Present) continue;
                     var b = Walkers[j];
                     factor = Mathf.Min(factor, HarborCrowdSpacing.YieldFactor(
                         a.Anchor.position, forward, nominal, i,
@@ -361,6 +467,12 @@ namespace HarborWatch
             {
                 var w = Walkers[i];
                 var p = w.Person;
+                if (!w.Present)
+                {
+                    w.AwayLeft -= dt;
+                    if (w.AwayLeft <= 0f) Enter(w, false);
+                    continue;
+                }
                 float target = planned[i];
                 float phase = (float)((clock + p.Offset) % p.Period);
                 bool habitOn = p.Habit > 0 && phase < HabitSeconds[p.Habit];
@@ -377,59 +489,164 @@ namespace HarborWatch
                 if (w.OnEar) target = 0f;
                 if (w.Wrong) target *= .3f;
 
-                float responsiveness = target < w.CurrentSpeed ? 4f : 1.6f;
+                // Gentle ramps: 1.1 m/s^2 to speed up, 2.2 to slow down, 3.2 when startled.
+                float responsiveness = target < w.CurrentSpeed ? (w.Flinching || w.OnEar ? 3.2f : 2.2f) : 1.1f;
                 w.CurrentSpeed = Mathf.MoveTowards(w.CurrentSpeed, target, responsiveness * dt);
-                Place(w, w.CurrentSpeed * dt);
-
-                // Pose: gait clip while moving, planted contact frame when stopped.
-                w.Moving = w.CurrentSpeed > .05f;
-                AnimationClip motion = Jogging(w) ? jog : walk;
-                float baseSpeed = Jogging(w) ? JogMetresPerSecond : WalkMetresPerSecond;
-                if (w.Moving)
-                {
-                    w.AnimTime = Mathf.Repeat(w.AnimTime + dt * w.CurrentSpeed / baseSpeed, motion.length);
-                    motion.SampleAnimation(w.Entity, w.AnimTime);
-                }
-                else walk.SampleAnimation(w.Entity, 0f);
-
-                // Head overrides are applied after sampling, so they never accumulate.
-                if (w.Flinching)
-                {
-                    Vector3 look = NoiseSource - w.Head.position; look.y = 0f;
-                    float yaw = Mathf.Clamp(Vector3.SignedAngle(w.Anchor.forward, look, Vector3.up), -75f, 75f);
-                    w.Head.localRotation *= Quaternion.Euler(-12f, yaw, 0f);
-                }
-                else if (glance) w.Head.localRotation *= Quaternion.Euler(0f, 80f * Mathf.Sin(phase / HabitSeconds[2] * Mathf.PI), 0f);
-                else if (phone) w.Head.localRotation *= Quaternion.Euler(22f, 0f, 0f);
-                if (w.OnEar) w.Head.localRotation *= Quaternion.Euler(0f, 0f, 14f);
-
-                w.Phone.SetActive(phone || w.OnEar);
-                if (w.Phone.activeSelf)
-                {
-                    w.Phone.transform.localPosition = w.OnEar ? new Vector3(-.11f, .12f, .0f) : new Vector3(0f, .08f, .17f);
-                    bool blink = Mathf.Sin(clock * 30f) > 0f;
-                    Tint(w.PhoneMaterial, w.OnEar ? (blink ? new Color(1f, .2f, .12f) : new Color(.45f, .08f, .05f)) : new Color(.8f, .93f, 1f));
-                }
+                bool wantStop = target < .05f;
+                Move(w, w.Settled ? 0f : w.CurrentSpeed * dt, dt);
+                if (!w.Present) continue;   // walked off the set this frame
+                Pose(w, dt, phone, glance, wantStop, phase);
             }
         }
 
-        void Place(Walker w, float advance)
+        // Heading follows the path a little ahead of the feet, so corners are taken as one
+        // curve instead of snapping to the tangent of the nearest sample.
+        float HeadingOf(Walker w)
+        {
+            Vector3 f = w.Route.At(w.Distance + .9f) - w.Route.At(w.Distance + .05f);
+            f.y = 0f;
+            if (f.sqrMagnitude < 1e-4f) f = w.Route.Forward(w.Distance);
+            return Mathf.Atan2(f.x, f.z) * Mathf.Rad2Deg;
+        }
+
+        void Move(Walker w, float advance, float dt)
         {
             w.Distance += advance;
-            if (w.Distance >= w.Route.Length)
-            {
-                // Continue from the same side of the concourse; identity persists.
-                char side = routeEndSide[w.RouteIndex];
-                var options = new List<int>();
-                for (int r = 0; r < routes.Count; r++) if (routeStartSide[r] == side && r != w.RouteIndex) options.Add(r);
-                if (options.Count == 0) for (int r = 0; r < routes.Count; r++) if (routeStartSide[r] == side) options.Add(r);
-                w.RouteIndex = options.Count > 0 ? options[random.Next(options.Count)] : (w.RouteIndex + 1) % routes.Count;
-                w.Route = routes[w.RouteIndex];
-                w.Distance = 0f;
-            }
+            if (w.Distance >= w.Route.Length) { Leave(w); return; }
             w.Anchor.position = w.Route.At(w.Distance);
-            Quaternion desired = Quaternion.LookRotation(w.Route.Forward(w.Distance), Vector3.up);
-            w.Anchor.rotation = advance <= 0f ? desired : Quaternion.RotateTowards(w.Anchor.rotation, desired, 170f * Time.deltaTime);
+            if (advance > 0f) w.Yaw = Mathf.SmoothDampAngle(w.Yaw, HeadingOf(w), ref w.YawVelocity, .25f, 160f, dt);
+            w.Anchor.rotation = Quaternion.Euler(0f, w.Yaw, 0f);
+        }
+
+        // A person who reaches the end of a route has walked off the represented set (the ends sit
+        // beyond its edges, as with the ambient crowd). They come back a moment later on a route
+        // from the same side, facing inwards. No U-turn on the spot, no sliding sideways.
+        void Leave(Walker w)
+        {
+            char side = routeEndSide[w.RouteIndex];
+            var options = new List<int>();
+            for (int r = 0; r < routes.Count; r++) if (routeStartSide[r] == side && r != w.RouteIndex) options.Add(r);
+            if (options.Count == 0) for (int r = 0; r < routes.Count; r++) if (routeStartSide[r] == side) options.Add(r);
+            w.RouteIndex = options.Count > 0 ? options[random.Next(options.Count)] : (w.RouteIndex + 1) % routes.Count;
+            w.Route = routes[w.RouteIndex];
+            w.Distance = 0f;
+            w.Present = false;
+            w.Anchor.gameObject.SetActive(false);
+            // The courier is away briefly, so a quick tag never lands on empty paving.
+            w.AwayLeft = (w == Courier ? .45f : .9f) + (float)random.NextDouble() * .8f;
+        }
+
+        void Enter(Walker w, bool force)
+        {
+            Vector3 start = w.Route.At(0f);
+            if (!force)
+                foreach (var other in Walkers)
+                    if (other != w && other.Present && (other.Anchor.position - start).sqrMagnitude < 1.2f * 1.2f)
+                    {
+                        w.AwayLeft = .35f;   // entrance busy: wait a moment
+                        return;
+                    }
+            w.Present = true;
+            w.Anchor.gameObject.SetActive(true);
+            w.Distance = 0f;
+            w.Yaw = HeadingOf(w); w.YawVelocity = 0f;
+            w.Anchor.position = start;
+            w.Anchor.rotation = Quaternion.Euler(0f, w.Yaw, 0f);
+            w.CurrentSpeed = NominalSpeed(w) * .85f;
+            w.Settled = false;
+            Pose(w, 0f, false, false, false, 0f);
+        }
+
+        /// <summary>Makes sure a person is on the set (used when the case ends and the courier is shown).</summary>
+        public void EnsurePresent(Walker w)
+        {
+            if (w != null && !w.Present) Enter(w, true);
+        }
+
+        void Pose(Walker w, float dt, bool phone, bool glance, bool wantStop, float habitPhase)
+        {
+            var p = w.Person;
+            AnimationClip motion = Jogging(w) ? jog : walk;
+            float baseSpeed = Jogging(w) ? JogMetresPerSecond : WalkMetresPerSecond;
+            float cycle = motion.length;
+            w.Moving = w.CurrentSpeed > .05f;
+
+            // Gait phase is a 0..1 fraction, so a walk-to-jog switch keeps the same foot forward.
+            // When stopping, the gait finishes the step and freezes on the next planted-foot pose
+            // (phase 0 or 0.5) instead of snapping to the contact frame.
+            bool nearlyStopped = wantStop && w.CurrentSpeed < .25f;
+            if (!nearlyStopped) w.Settled = false;
+            if (!w.Settled)
+            {
+                float rate = w.CurrentSpeed / baseSpeed;
+                if (nearlyStopped) rate = Mathf.Max(rate, .4f);
+                float next = w.Phase01 + dt * rate / cycle;
+                if (nearlyStopped)
+                {
+                    float contact = Mathf.Ceil(w.Phase01 * 2f - .0001f) * .5f;
+                    if (next >= contact) { next = contact; w.Settled = true; w.CurrentSpeed = 0f; }
+                }
+                w.Phase01 = Mathf.Repeat(next, 1f);
+            }
+            motion.SampleAnimation(w.Entity, w.Phase01 * cycle);
+
+            // ---- arms: applied after sampling, so nothing accumulates frame to frame
+            Vector3 forward = w.Anchor.forward, up = Vector3.up;
+            Arm caseArm = w.RightArm;
+            Arm phoneArm = p.Carry == 2 ? w.LeftArm : w.RightArm;
+            if (w.Briefcase && caseArm != null)
+            {
+                Vector3 outward = caseArm.Side * w.Anchor.right;
+                Vector3 grip = w.Hips.position + outward * .26f - up * .17f
+                    + forward * (Mathf.Sin(w.Phase01 * Mathf.PI * 2f) * .02f);
+                Vector3 wrist = Reach(caseArm, grip, outward * .6f - up * .6f - forward * .4f, 1f);
+                float swing = Mathf.Sin(w.Phase01 * Mathf.PI * 2f + .6f) * Mathf.Clamp01(w.CurrentSpeed / baseSpeed) * 5f;
+                w.Briefcase.transform.SetPositionAndRotation(wrist, w.Anchor.rotation * Quaternion.Euler(swing, 0f, 0f));
+            }
+            bool lifting = phone || w.OnEar;
+            float earMix = 0f;
+            if (phoneArm != null)
+            {
+                phoneArm.Weight = Mathf.MoveTowards(phoneArm.Weight, lifting ? 1f : 0f, dt * 2.8f);
+                // Ear mix lives in the arm's own blend: 0 = reading, 1 = at the ear.
+                w.HeadRoll = Mathf.MoveTowards(w.HeadRoll, w.OnEar ? 14f : 0f, dt * 60f);
+                earMix = w.HeadRoll / 14f;
+                if (phoneArm.Weight > .001f)
+                {
+                    Vector3 outward = phoneArm.Side * w.Anchor.right;
+                    Vector3 reading = w.Head.position + forward * .2f - up * .31f + outward * .03f;
+                    Vector3 atEar = w.Head.position + outward * .105f - up * .01f;
+                    Vector3 wrist = Reach(phoneArm, Vector3.Lerp(reading, atEar, earMix),
+                        outward * .6f - up * .8f - forward * .3f, phoneArm.Weight);
+                    bool show = phoneArm.Weight > .55f;
+                    w.Phone.SetActive(show);
+                    if (show)
+                    {
+                        Quaternion read = Quaternion.LookRotation((w.Head.position + up * .04f - wrist).normalized, up);
+                        Quaternion ear = Quaternion.LookRotation(-outward, up);
+                        w.Phone.transform.SetPositionAndRotation(wrist, Quaternion.Slerp(read, ear, earMix));
+                        bool blink = Mathf.Sin(clock * 30f) > 0f;
+                        Tint(w.PhoneMaterial, earMix > .5f ? new Color(.05f, .06f, .07f) : new Color(.8f, .93f, 1f));
+                        Tint(w.BeaconMaterial, w.OnEar ? (blink ? new Color(1f, .2f, .12f) : new Color(.45f, .08f, .05f)) : new Color(.3f, .05f, .04f));
+                    }
+                }
+                else w.Phone.SetActive(false);
+            }
+
+            // ---- head: smoothed towards its target, applied after sampling
+            float yawTarget = 0f, pitchTarget = 0f;
+            if (w.Flinching)
+            {
+                Vector3 look = NoiseSource - w.Head.position; look.y = 0f;
+                yawTarget = Mathf.Clamp(Vector3.SignedAngle(w.Anchor.forward, look, Vector3.up), -75f, 75f);
+                pitchTarget = -12f;
+            }
+            else if (glance) yawTarget = 80f * Mathf.Sin(habitPhase / HabitSeconds[2] * Mathf.PI);
+            else if (phone) pitchTarget = 22f;
+            float k = dt <= 0f ? 1f : 1f - Mathf.Exp(-9f * dt);
+            w.HeadYaw += (yawTarget - w.HeadYaw) * k;
+            w.HeadPitch += (pitchTarget - w.HeadPitch) * k;
+            w.Head.localRotation *= Quaternion.Euler(w.HeadPitch, w.HeadYaw, w.HeadRoll);
         }
 
         public void Clear()

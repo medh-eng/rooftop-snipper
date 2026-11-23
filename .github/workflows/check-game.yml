@@ -38,3 +38,8 @@ jobs:
         run: dotnet run --project tools/core-tests
       - name: Compile-check all Unity scripts
         run: dotnet build tools/unity-compile-check
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Crowd routes keep clear of buildings
+        run: node tools/route-check.cjs

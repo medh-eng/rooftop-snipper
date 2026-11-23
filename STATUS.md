@@ -45,6 +45,18 @@ Plan: [PLAN.md](PLAN.md) · History: [LOG.md](LOG.md)
 | Performance | 26 skinned people in case 12 | Target 30 FPS on your phone. Record the model and FPS in LOG.md |
 | Old scenes | `HarborMission`, `HarborCrowd`, `HarborDrone` | Still open and play as before (only a new mode flag was added) |
 
+## Crowd motion and props (reworked 23 Nov, after the first Unity play)
+Pon's feedback: walking and turning not smooth, some people seemed to come through buildings, briefcase and phone wrong in size and motion. Changes in `FindTheOne/CaseCrowd.cs`:
+* Turning: heading is smoothed (SmoothDampAngle) and follows the path 0.9 m ahead. Before, people spun on the spot at route ends and snapped to the tangent.
+* Route ends: people now walk off the set, wait 0.5-1.7 s hidden and re-enter facing inwards (no U-turn, no teleport). The courier is hidden for the shortest time. Hidden people cannot be tapped or block the line of fire.
+* Speed ramps are gentler (1.1 m/s² up, 2.2 down). When stopping, the gait finishes its step and freezes on a planted-foot pose instead of snapping.
+* Buildings: `tools/route-check.cjs` tests every route against every solid object. Route 9 grazed the pier railing (0.04 m); ferry routes now pass a waypoint on the gangway centre line. All routes are now at least 0.5 m clear (body radius 0.3 m). It runs in CI.
+* Briefcase: real size (42 x 30 x 8.5 cm), hangs from the hand upright, swings a few degrees like a pendulum, arm held by two-bone reach IK. It is no longer glued rigidly to the forearm.
+* Phone: real size (7 x 14.5 cm), held in the hand. Arm raises smoothly (0.35 s), screen faces the face when reading, flat against the ear on the ping with a red blinking back light. Carriers of a briefcase use the other hand.
+* Head turns and tilts are smoothed instead of snapping.
+
+Still to check in Unity: the IK finds the forearm axis automatically (no hand bone in CrowdWalk.fbx). If a phone or case sits a few centimetres off the grip, adjust `Arm.ForeLength` clamp in `MakeArm` or the `grip` / `reading` / `atEar` offsets in `Pose`.
+
 ## Known limitations
 
 * Unity UI is IMGUI (functional, plain). Phase C replaces it.

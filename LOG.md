@@ -52,3 +52,19 @@ Pon wanted the game to be more creative and addictive, less like a routine shoot
 1. Pon: playtest the browser build on a phone, then give it to 3–5 people without explaining it.
 2. Pon: first Unity Play session on this branch; report Console errors or screenshots.
 3. Tune from the feedback, then Phase C (real UI, animation, lens and post effects).
+
+
+## 2026-11-23 (evening): crowd motion and props
+Feedback from Pon after the first Unity play: movement not smooth when walking and turning, some people looked like they came through buildings, briefcase and phone size and animation looked wrong.
+
+### Changed
+* `CaseCrowd.cs`: smoothed heading, hidden off-set re-entry instead of U-turn and teleport, gentler speed ramps, gait freezes on planted-foot poses, smoothed head motion, two-bone reach IK for the carrying and phone arms, briefcase and phone rebuilt at real size and hung from the wrist.
+* Ferry routes get a gangway centre-line waypoint (`GatedControls`). New `tools/route-check.cjs` (also in CI).
+* `FindTheOneController.cs`: hidden people are ignored by tap, line-of-fire and selection; the courier is brought back before the reveal.
+* Compile-check stubs extended (SmoothDampAngle, Quaternion.Slerp).
+
+### Verified
+Compile-check builds, core tests 6/6, `node --test` 53/53, route-check all routes clear.
+
+### Not verified
+Not run in Unity again. The arm IK and prop offsets need a look in Play mode (see STATUS.md).
