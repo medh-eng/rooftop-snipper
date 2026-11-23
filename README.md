@@ -22,6 +22,16 @@ For a single offline file, run `node tools/build-offline.cjs Rooftop-Sniper.html
 
 The optional browser test runs all nine contracts on desktop Chromium and checks touch interactions at a phone viewport. With Playwright and its Chromium installed, run `node --test tests/campaign-browser.cjs`. Set `BROWSER_PATH` to use an existing Chromium executable.
 
+## Play the Unity Port Meridian shift
+
+Open `unity/HarborWatch` in Unity **6000.3.28f1**, open **Assets → Scenes → HarborMission**, press **Play**, and select **Start Shift** in the **Game** tab. From **HarborCrowd**, press Play and select **Play Harbor Watch**.
+
+1. Drag to centre a red relay and press **Scan**. Verify all three within 90 seconds. **Restart** retries a timed-out survey.
+2. The survey pays credits and saves a flight checkpoint. **Decode** and **Photo** are optional activities. Choose **Fly Drone** to continue over the same crowd.
+3. Press **Find** to face the moving survey drone. Press **Identify** with a clear view to file the shift report. Select **Play Another Shift** to replay.
+
+To check the save on a phone, close and reopen after the rooftop survey. **Continue Flight** should take you straight to the aerial inspection with the same credit balance. Reopen after identification to see the report. For an APK, switch the Unity build target to Android, then select **Harbor Watch → Build Android Development APK**.
+
 ## Unity Android prototype
 
 The [Harbor Watch Unity plan](docs/UNITY_HARBOR_WATCH_PLAN.md) covers opening the project on your PC, testing the first pedestrian's walk, and the tasks for you and ChatGPT in each phase.

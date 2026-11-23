@@ -121,7 +121,10 @@ namespace HarborWatch
             climb = 0f;
             if (beacon) beacon.SetActive(true);
             hint = "Fly around the terminal and identify the unregistered survey drone.";
-            if (concourse && concourse.Traffic) concourse.Traffic.ResetTraffic();
+            if (concourse && concourse.Traffic && !concourse.IsShiftFlight)
+                concourse.Traffic.ResetTraffic();
+            if (concourse.IsShiftFlight)
+                hint = "Final inspection: tap FIND, then IDENTIFY the survey drone in clear view.";
             UpdateCamera();
         }
 
@@ -428,6 +431,11 @@ namespace HarborWatch
             ReadTouch();
             ReadMouse();
             ReadKeyboard();
+            if (identified && concourse.IsShiftFlight)
+            {
+                concourse.FinishShiftFlight();
+                return;
+            }
             float dt = Mathf.Min(Time.deltaTime, .05f);
             MoveCamera(dt);
             if (!paused) MoveBeacon(dt);
@@ -496,6 +504,7 @@ namespace HarborWatch
 
         void OnDestroy()
         {
+            if (beacon) Destroy(beacon);
             foreach (var material in ownedMaterials)
                 if (material) Destroy(material);
         }

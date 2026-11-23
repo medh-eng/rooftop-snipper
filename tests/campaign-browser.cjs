@@ -4,6 +4,9 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 const path = require('node:path');
 const fs = require('node:fs/promises');
+const os = require('node:os');
+const { pathToFileURL } = require('node:url');
+const { execFileSync } = require('node:child_process');
 const { chromium } = require('playwright');
 const C = require('../src/campaign.js');
 const root = path.resolve(__dirname, '..');
@@ -83,7 +86,14 @@ test('desktop campaign and mobile touch, saved upgrades, locks, gold relay and m
   const url = `http://127.0.0.1:${server.address().port}/`;
   const browser=await chromium.launch({ executablePath:process.env.BROWSER_PATH || undefined, headless:true, args:['--no-sandbox'] }); t.after(()=>browser.close());
   const desktop = await browser.newContext({viewport:{width:1366,height:880}}), page = await desktop.newPage(); const problems=errors(page);
-  await page.goto(url);await page.getByRole('heading',{name:'Harbor Watch'}).waitFor();
+  // Exercise the actual downloadable edition through file:// with networking
+  // disabled. The touch run below still covers the hosted entry point.
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'harbor-offline-'));
+  t.after(() => fs.rm(temp, { recursive: true, force: true }));
+  const packed = path.join(temp, 'Harbor-Watch.html');
+  execFileSync(process.execPath, [path.join(root, 'tools/build-offline.cjs'), packed]);
+  await desktop.setOffline(true);
+  await page.goto(pathToFileURL(packed).href);await page.getByRole('heading',{name:'Harbor Watch'}).waitFor();
   await page.getByRole('button',{name:/Vesper City, Locked/}).click();assert.equal(await page.locator('.contract-row:disabled').count(),3);
   await page.keyboard.press('Escape');await click(page,'intel');await page.getByRole('heading',{name:'Harbor Watch',exact:true}).last().waitFor();await page.keyboard.press('Escape');
   await click(page,'armory');await page.locator('button[data-id="cartridge"]').click();await until(async()=>await page.locator('#balance').innerText()==='140');

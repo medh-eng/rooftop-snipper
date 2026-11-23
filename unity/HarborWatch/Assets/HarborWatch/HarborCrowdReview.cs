@@ -66,6 +66,34 @@ namespace HarborWatch
             else if (droneMode) droneReview = gameObject.AddComponent<HarborDroneReview>();
         }
 
+        public void LaunchShiftFlight()
+        {
+            mission.enabled = false;
+            missionMode = false;
+            droneMode = true;
+            droneReview = gameObject.AddComponent<HarborDroneReview>();
+        }
+
+        public bool IsShiftFlight => droneMode && mission != null;
+
+        public void FinishShiftFlight()
+        {
+            droneReview.enabled = false;
+            Destroy(droneReview);
+            droneReview = null;
+            droneMode = false;
+            missionMode = true;
+            mission.FileShiftReport();
+            mission.enabled = true;
+        }
+
+        Rect PlayShiftArea()
+        {
+            Rect first = Control(0);
+            return new Rect(first.x, first.y - first.height - 6f,
+                Screen.safeArea.width - 12f, first.height);
+        }
+
         void Fail(string message)
         {
             error = message;
@@ -262,6 +290,11 @@ namespace HarborWatch
                 Vector2 pointer = tapped ? touch.primaryTouch.position.ReadValue() :
                     mouse.position.ReadValue();
                 pointer.y = Screen.height - pointer.y;
+                if (PlayShiftArea().Contains(pointer))
+                {
+                    UnityEngine.SceneManagement.SceneManager.LoadScene("HarborMission");
+                    return;
+                }
                 for (int i = 0; i < 6; i++)
                     if (Control(i).Contains(pointer)) { Activate(i); break; }
             }
@@ -308,6 +341,7 @@ namespace HarborWatch
             };
             var button = new GUIStyle(GUI.skin.button);
             button.fontSize = Mathf.Clamp(Mathf.RoundToInt(Control(0).width * .15f), 11, 23);
+            GUI.Box(PlayShiftArea(), "PLAY HARBOR WATCH", button);
             for (int i = 0; i < labels.Length; i++)
                 GUI.Box(Control(i), labels[i], button);
         }
