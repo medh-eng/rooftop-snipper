@@ -247,25 +247,44 @@ namespace HarborWatch
                 var a = new Agent();
                 a.anchor = new GameObject("Visitor " + (i + 1).ToString("00")).transform;
                 a.anchor.SetParent(map, false);
-                a.entity = Instantiate(prefab, a.anchor);
+                // SampleAnimation owns the imported hierarchy. Keep its facing
+                // correction on a parent outside the animation bindings.
+                Transform model = new GameObject("Commuter facing").transform;
+                model.SetParent(a.anchor, false);
+                a.entity = Instantiate(prefab, model);
                 a.entity.name = "Original commuter rig";
                 foreach (var animation in a.entity.GetComponentsInChildren<Animation>(true))
                     animation.enabled = false;
-                Transform head = null, chest = null;
+                Transform head = null, chest = null, leftFoot = null;
                 foreach (var bone in a.entity.GetComponentsInChildren<Transform>(true))
                 {
                     if (bone.name == "Hips") a.hips = bone;
                     if (bone.name == "Head") head = bone;
                     if (bone.name == "Chest") chest = bone;
+                    if (bone.name == "Foot.L") leftFoot = bone;
                 }
-                if (!a.hips || !head || !chest)
+                if (!a.hips || !head || !chest || !leftFoot)
                 {
                     Debug.LogError("CrowdWalk FBX rig is missing a required bone.");
                     return false;
                 }
                 a.head = head;
+                // Foot.L is planted through the first quarter of CrowdWalk.
+                // Its backwards motion in the clip gives the mesh's travel axis.
+                walk.SampleAnimation(a.entity, 0f);
+                Vector3 contact = leftFoot.position;
+                walk.SampleAnimation(a.entity, walk.length * .25f);
+                Vector3 forward = Vector3.ProjectOnPlane(contact - leftFoot.position, a.anchor.up);
+                if (forward.sqrMagnitude < .0001f)
+                {
+                    Debug.LogError("CrowdWalk has no measurable left-foot stance motion.");
+                    return false;
+                }
+                model.rotation = Quaternion.AngleAxis(
+                    Vector3.SignedAngle(forward, a.anchor.forward, a.anchor.up), a.anchor.up)
+                    * model.rotation;
+                walk.SampleAnimation(a.entity, 0f);
                 CreateClothing(a);
-                walk.SampleAnimation(a.entity, 0);
                 CreateAccessories(a, head, chest);
                 a.entity.SetActive(false);
                 agents[i] = a;
@@ -312,11 +331,13 @@ namespace HarborWatch
         }
 
         static GameObject AttachToBone(string name, Transform bone,
-            Transform walkerRoot, Vector3 expectedRootPosition)
+            Transform travelFrame, Vector3 offsetMetres)
         {
             var pivot = new GameObject(name);
-            pivot.transform.position = walkerRoot.TransformPoint(expectedRootPosition);
-            pivot.transform.rotation = walkerRoot.rotation;
+            // Bone origins follow the sampled pose. Express tailoring offsets in
+            // metres along the fitted character's right, up and forward axes.
+            pivot.transform.SetPositionAndRotation(
+                bone.position + travelFrame.rotation * offsetMetres, travelFrame.rotation);
             pivot.transform.SetParent(bone, true);
             return pivot;
         }
@@ -337,31 +358,58 @@ namespace HarborWatch
 
         void CreateAccessories(Agent a, Transform head, Transform chest)
         {
-            a.hat = AttachToBone("Optional cap", head, a.entity.transform,
-                new Vector3(0, 1.745f, 0));
-            AccessoryPiece(a.hat, "Cap brim", PrimitiveType.Cylinder,
-                Vector3.zero, new Vector3(.33f,.018f,.32f), a.accessoryMaterial, Vector3.zero);
-            AccessoryPiece(a.hat, "Cap crown", PrimitiveType.Cylinder,
-                new Vector3(0,.085f,0), new Vector3(.24f,.09f,.24f),
-                a.accessoryMaterial, Vector3.zero);
-            AccessoryPiece(a.hat, "Front peak", PrimitiveType.Cube,
-                new Vector3(0,0,.16f), new Vector3(.21f,.02f,.13f),
-                a.accessoryMaterial, Vector3.zero);
+            // The head starts at the base of the skull. Hair reaches .272 m
+            // above it. Seat the cap around the hairline, with its peak forward.
+            a.hat = AttachToBone("Optional cap", head, a.anchor, new Vector3(0,.213f,-.017f));
+            AccessoryPiece(a.hat, "Cap crown", PrimitiveType.Sphere, Vector3.zero,
+                new Vector3(.216f,.153f,.226f), a.accessoryMaterial, Vector3.zero);
+            AccessoryPiece(a.hat, "Front peak", PrimitiveType.Sphere, new Vector3(0,-.01f,.094f),
+                new Vector3(.184f,.019f,.155f), a.accessoryMaterial, new Vector3(6,0,0));
 
-            a.backpack = AttachToBone("Optional backpack", chest, a.entity.transform,
-                new Vector3(0, 1.28f, -.18f));
-            AccessoryPiece(a.backpack, "Fabric pack", PrimitiveType.Cube,
-                Vector3.zero, new Vector3(.32f,.38f,.17f),
+            a.backpack = AttachToBone("Optional backpack", chest, a.anchor,
+                new Vector3(0,.213f,-.187f));
+            AccessoryPiece(a.backpack, "Fabric pack", PrimitiveType.Sphere, Vector3.zero,
+                new Vector3(.285f,.356f,.169f), a.accessoryMaterial, Vector3.zero);
+            AccessoryPiece(a.backpack, "Pack pocket", PrimitiveType.Sphere,
+                new Vector3(0,-.056f,-.064f), new Vector3(.224f,.175f,.086f),
                 a.accessoryMaterial, Vector3.zero);
-            AccessoryPiece(a.backpack, "Pack pocket", PrimitiveType.Cube,
-                new Vector3(0,-.055f,-.085f), new Vector3(.23f,.19f,.055f),
-                a.accessoryMaterial, Vector3.zero);
+            for (int side = -1; side <= 1; side += 2)
+            {
+                float x = side * .114f;
+                Vector3 rear = new Vector3(x,.077f,.05f);
+                Vector3 shoulder = new Vector3(x,.195f,.174f);
+                Vector3 front = new Vector3(x,.15f,.298f);
+                Strap(a.backpack, rear, shoulder, a.accessoryMaterial);
+                Strap(a.backpack, shoulder, front, a.accessoryMaterial);
+                Strap(a.backpack, front, new Vector3(x,-.076f,.299f), a.accessoryMaterial);
+            }
 
-            a.satchel = AttachToBone("Optional messenger bag", chest, a.entity.transform,
-                new Vector3(-.18f, 1.02f, -.16f));
-            AccessoryPiece(a.satchel, "Side satchel", PrimitiveType.Cube,
-                Vector3.zero, new Vector3(.25f,.27f,.12f),
-                a.accessoryMaterial, new Vector3(0,0,-8));
+            a.satchel = AttachToBone("Optional messenger bag", chest, a.anchor,
+                new Vector3(-.132f,-.005f,-.14f));
+            AccessoryPiece(a.satchel, "Hip pouch", PrimitiveType.Sphere, Vector3.zero,
+                new Vector3(.205f,.215f,.108f), a.accessoryMaterial, new Vector3(0,0,-8));
+            Vector3 back = new Vector3(.155f,.25f,-.001f);
+            Vector3 shoulder = new Vector3(.237f,.42f,.14f);
+            Vector3 collar = new Vector3(.212f,.372f,.256f);
+            Vector3 sternum = new Vector3(.115f,.232f,.28f);
+            Vector3 waist = new Vector3(-.024f,.06f,.207f);
+            Vector3 hip = new Vector3(-.048f,.045f,.071f);
+            Strap(a.satchel, Vector3.zero, back, a.accessoryMaterial);
+            Strap(a.satchel, back, shoulder, a.accessoryMaterial);
+            Strap(a.satchel, shoulder, collar, a.accessoryMaterial);
+            Strap(a.satchel, collar, sternum, a.accessoryMaterial);
+            Strap(a.satchel, sternum, waist, a.accessoryMaterial);
+            Strap(a.satchel, waist, hip, a.accessoryMaterial);
+            Strap(a.satchel, hip, Vector3.zero, a.accessoryMaterial);
+        }
+
+        static void Strap(GameObject bag, Vector3 start, Vector3 end, Material material)
+        {
+            Vector3 delta = end - start;
+            // Rotate a narrow fabric strip so its long axis joins the two seams.
+            AccessoryPiece(bag, "Strap", PrimitiveType.Cube, (start + end) * .5f,
+                new Vector3(.031f, delta.magnitude + .005f, .014f), material,
+                Quaternion.FromToRotation(Vector3.up, delta).eulerAngles);
         }
 
         void PaintVisitor(Agent a)
