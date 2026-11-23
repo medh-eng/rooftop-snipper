@@ -17,6 +17,11 @@ namespace HarborWatch
         const string SaveCleared = "HarborWatch.SignalSurvey.Cleared.v1";
         const string SaveBestStars = "HarborWatch.SignalSurvey.BestStars.v1";
         const string SaveAlbum = "HarborWatch.PortMeridian.PhotoAlbum.v1";
+        const string SaveShift = "HarborWatch.PortMeridian.Shift.v1";
+        enum Checkpoint { Survey, Flight, Complete }
+        Checkpoint checkpoint;
+        bool showDispatch;
+        int dispatchFrame;
         const float MinimumFov = 24f;
         const float MaximumFov = 62f;
         const float ScanScreenRadius = .11f;
@@ -58,7 +63,7 @@ namespace HarborWatch
 
         // The world keeps moving while the player photographs static landmarks
         // after a win. The 90-second survey timer does not resume.
-        public bool IsRunning { get { return !paused && (!finished || photoMode); } }
+        public bool IsRunning { get { return !showDispatch && !paused && (!finished || photoMode); } }
 
         void Start()
         {
@@ -88,6 +93,66 @@ namespace HarborWatch
             album.Load(PlayerPrefs.GetInt(SaveAlbum, 0));
             BuildSignals();
             RestartMission();
+            // Earlier versions already paid for the survey. Honour that clear.
+            int previous = PlayerPrefs.GetInt(SaveCleared, 0) == 1 ? 1 : 0;
+            checkpoint = (Checkpoint)Mathf.Clamp(PlayerPrefs.GetInt(SaveShift, previous), 0, 2);
+            showDispatch = true;
+        }
+
+        void OpenFlight()
+        {
+            foreach (var signal in signals) signal.Model.SetActive(false);
+            review.LaunchShiftFlight();
+        }
+
+        public void FileShiftReport()
+        {
+            checkpoint = Checkpoint.Complete;
+            PlayerPrefs.SetInt(SaveShift, (int)checkpoint);
+            PlayerPrefs.Save();
+            showDispatch = true;
+            dispatchFrame = Time.frameCount;
+            ResetLens();
+        }
+
+        Rect DispatchArea()
+        {
+            Rect safe = Screen.safeArea;
+            float width = Mathf.Min(safe.width * .90f, 540f);
+            float height = Mathf.Min(safe.height * .86f, 320f);
+            return new Rect(safe.center.x - width * .5f,
+                Screen.height - safe.center.y - height * .5f, width, height);
+        }
+
+        Rect DispatchAction()
+        {
+            Rect panel = DispatchArea();
+            float height = Mathf.Min(panel.height * .22f, 58f);
+            return new Rect(panel.x + 14f, panel.yMax - height - 14f,
+                panel.width - 28f, height);
+        }
+
+        void DrawDispatch()
+        {
+            Rect panel = DispatchArea(), action = DispatchAction();
+            var body = new GUIStyle(GUI.skin.box) {
+                alignment = TextAnchor.MiddleCenter, wordWrap = true,
+                fontSize = Mathf.Clamp(Mathf.RoundToInt(panel.width / 23f), 14, 22)
+            };
+            bool complete = checkpoint == Checkpoint.Complete;
+            string title = complete ? "SHIFT COMPLETE" : "PORT MERIDIAN";
+            string details = complete
+                ? "Three relays verified. Survey drone identified.\nBest survey: " +
+                    PlayerPrefs.GetInt(SaveBestStars, 0) + "/3 stars   |   Album: " +
+                    album.CapturedCount + "/3\nWallet: " + credits + " credits"
+                : checkpoint == Checkpoint.Flight
+                    ? "Rooftop survey filed. Your flight is ready.\nUse FIND to centre the survey drone, then IDENTIFY when you have a clear view."
+                    : "Morning shift\nDrag to centre each of three red relays, then tap SCAN. You have 90 seconds. After the survey, take the drone up for a final inspection.";
+            GUI.Box(panel, GUIContent.none);
+            GUI.Label(new Rect(panel.x + 16f, panel.y + 8f, panel.width - 32f,
+                action.y - panel.y - 18f), title + "\n\n" + details, body);
+            GUI.Box(action, complete ? "PLAY ANOTHER SHIFT" :
+                checkpoint == Checkpoint.Flight ? "CONTINUE FLIGHT" : "START SHIFT", body);
         }
 
         Material Painted(Color colour)
@@ -203,9 +268,28 @@ namespace HarborWatch
 
         bool OnControl(Vector2 position)
         {
+            if (showDispatch)
+            {
+                if (Time.frameCount == dispatchFrame || !DispatchAction().Contains(position)) return true;
+                showDispatch = false;
+                if (checkpoint == Checkpoint.Flight) OpenFlight();
+                else
+                {
+                    checkpoint = Checkpoint.Survey;
+                    PlayerPrefs.SetInt(SaveShift, (int)checkpoint);
+                    PlayerPrefs.Save();
+                    RestartMission();
+                }
+                return true;
+            }
             for (int i = 0; i < 5; i++)
             {
                 if (!ButtonArea(i).Contains(position)) continue;
+                if (finished && won && i == 4)
+                {
+                    OpenFlight();
+                    return true;
+                }
                 if (finished && won && i == 3)
                 {
                     photoMode = !photoMode;
@@ -227,7 +311,6 @@ namespace HarborWatch
                             lens.fieldOfView + 5f, MinimumFov, MaximumFov); break;
                         case 2: lens.fieldOfView = Mathf.Clamp(
                             lens.fieldOfView - 5f, MinimumFov, MaximumFov); break;
-                        case 4: RestartMission(); break;
                     }
                     return true;
                 }
@@ -282,7 +365,7 @@ namespace HarborWatch
                 Vector2 first = touch.touches[0].position.ReadValue();
                 Vector2 second = touch.touches[1].position.ReadValue();
                 float gap = Vector2.Distance(first, second);
-                if (lastPinchGap > 0f && !paused && (!finished || photoMode))
+                if (!showDispatch && lastPinchGap > 0f && !paused && (!finished || photoMode))
                     lens.fieldOfView = Mathf.Clamp(lens.fieldOfView -
                         (gap - lastPinchGap) * .035f, MinimumFov, MaximumFov);
                 lastPinchGap = gap;
@@ -362,7 +445,7 @@ namespace HarborWatch
             if (!photoMode || !won) return;
             if (album.Complete)
             {
-                message = "Album complete. Tap BACK or RESTART.";
+                message = "Album complete. Tap BACK or FLY DRONE.";
                 return;
             }
             string title = album.CurrentTitle;
@@ -401,6 +484,8 @@ namespace HarborWatch
             credits = Mathf.Min(9999999, credits + reward.Total);
             PlayerPrefs.SetInt(SaveCredits, credits);
             PlayerPrefs.SetInt(SaveCleared, 1);
+            checkpoint = Checkpoint.Flight;
+            PlayerPrefs.SetInt(SaveShift, (int)checkpoint);
             PlayerPrefs.SetInt(SaveBestStars,
                 Mathf.Max(PlayerPrefs.GetInt(SaveBestStars, 0), reward.Stars));
             PlayerPrefs.Save();
@@ -411,6 +496,7 @@ namespace HarborWatch
         {
             if (!lens || !review || !review.Traffic) return;
             HandlePointer();
+            if (!enabled || showDispatch) return;
             if (IsRunning)
             {
                 feedbackLeft = Mathf.Max(0f, feedbackLeft - Time.deltaTime);
@@ -425,6 +511,7 @@ namespace HarborWatch
         void OnGUI()
         {
             if (!lens || !review || !review.Traffic) return;
+            if (showDispatch) { DrawDispatch(); return; }
             Rect safe = Screen.safeArea;
             float margin = Mathf.Clamp(safe.width * .013f, 7f, 15f);
             float top = Screen.height - safe.yMax + margin;
@@ -455,6 +542,7 @@ namespace HarborWatch
                 labels[0] = photoMode ? "CAPTURE" : decoding ? "RELAY 3" : "DECODE";
                 labels[1] = photoMode ? "ZOOM -" : decoding ? "RELAY 1" : "";
                 labels[2] = photoMode ? "ZOOM +" : decoding ? "RELAY 2" : "";
+                labels[4] = "FLY DRONE";
                 labels[3] = photoMode ? "BACK" : "PHOTO";
                 if (!photoMode && decode.Complete)
                     labels[0] = labels[1] = labels[2] = "";
@@ -529,11 +617,11 @@ namespace HarborWatch
             };
             string text = paused ? "PAUSED\nTap RESUME" :
                 won ? "SURVEY COMPLETE\n+" + reward.Total + " credits | " +
-                     reward.Stars + " stars\nBalance " + credits + "\nDECODE relay or PHOTO landmarks" :
+                     reward.Stars + " stars\nBalance " + credits + "\nNext: FLY DRONE\nOptional: DECODE or PHOTO" :
                       "TIME EXPIRED\n" + cleared + "/3 signals\nTap RESTART";
             if (decoding)
             {
-                text = decode.Complete ? "RELAY DECODED\nTerminal link restored.\nTap RESTART for a new survey." :
+                text = decode.Complete ? "RELAY DECODED\nTerminal link restored.\nTap FLY DRONE to finish the shift." :
                     "RELAY DECODE\nScan order: " + decode.Trace +
                     "\nReturn the sequence in reverse.\n" + decode.Matched + " of 3 matched\n" + decodeHint;
             }
