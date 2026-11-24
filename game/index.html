@@ -26,6 +26,13 @@
       </header>
       <div class="heat" aria-hidden="true"><i id="heat-fill"></i><span>LENS HEAT</span></div>
       <section class="dossier" id="dossier" aria-label="Dossier"></section>
+      <div class="echo-bar" id="echo-bar" hidden>
+        <span class="echo-tag">⏪ ECHO</span>
+        <div class="echo-track"><i id="echo-fill"></i></div>
+        <b id="echo-time">−8.0 s</b>
+        <button class="echo-speed" id="echo-speed" aria-label="Replay speed">1×</button>
+        <button class="echo-skip" id="echo-skip">Back to live</button>
+      </div>
       <div class="toast" id="toast" role="status" aria-live="polite"></div>
       <div class="coach" id="coach" hidden></div>
       <footer class="controls">
@@ -34,6 +41,7 @@
           <button class="tool" id="mark-btn"><span>❓</span><b>Mark</b></button>
           <button class="tool" id="noise-btn"><span>📣</span><b id="noise-label">Horn</b></button>
           <button class="tool" id="ping-btn"><span>📡</span><b>Ping</b></button>
+          <button class="tool" id="echo-btn" hidden><span>⏪</span><b>Echo</b></button>
         </div>
         <button class="fire" id="fire-btn" aria-label="Hold to steady, release to tag"><span>TAG</span><small>hold</small></button>
       </footer>
@@ -92,6 +100,7 @@
         <div><b>3 · Provoke</b><p><b>Noise</b> makes everyone stop and look, except a trained courier and anyone wearing headphones. <b>Ping</b> hits the cell radio: every Red Signal member touches their ear.</p></div>
         <div><b>4 · Tag</b><p>Tap a person to select them. Hold TAG until the ring locks, then release. Wait for a clear line: passers-by block the shot.</p></div>
         <div><b>5 · Be brave</b><p>Tagging early, before all the intel arrives, multiplies your score. A wrong tag spooks the courier: you have one more shot and 15 seconds.</p></div>
+        <div><b>Echo lens</b><p>From case 4: replay the last 8 seconds of the crowd, once per case, for 6 seconds of your clock. Use it to catch who didn't flinch at the noise or who touched an ear. Drag and zoom while it plays.</p></div>
         <div><b>Daily Case</b><p>One case a day, identical for every player. Share your result without spoilers.</p></div>
       </div>
     </section>

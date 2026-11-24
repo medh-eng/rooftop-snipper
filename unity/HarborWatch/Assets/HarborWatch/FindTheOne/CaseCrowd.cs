@@ -66,6 +66,9 @@ namespace HarborWatch
             internal float Distance, Phase01, CurrentSpeed, Yaw, YawVelocity, AwayLeft;
             internal float HeadYaw, HeadPitch, HeadRoll;
             internal bool Settled;
+            // What the last Step fed into Pose(); the Echo lens records them to replay the same pose.
+            internal bool LastPhone, LastGlance;
+            internal float LastHabitPhase;
             public bool Moving, Flinching, OnEar, Wrong, Marked;
             /// <summary>False while the person has walked off the set and is about to re-enter.</summary>
             public bool Present = true;
@@ -150,6 +153,7 @@ namespace HarborWatch
             // everything the player must deduce comes from the Core case.
             random = new System.Random((int)(kase.Seed & 0x7fffffff));
             clock = 0f; noiseAt = pingAt = -99f; CourierAlert = false;
+            log.Clear(); nextRecord = 0f; liveBackup = null; replaying = false;
 
             foreach (var person in kase.People)
             {
@@ -495,8 +499,10 @@ namespace HarborWatch
                 bool wantStop = target < .05f;
                 Move(w, w.Settled ? 0f : w.CurrentSpeed * dt, dt);
                 if (!w.Present) continue;   // walked off the set this frame
+                w.LastPhone = phone; w.LastGlance = glance; w.LastHabitPhase = phase;
                 Pose(w, dt, phone, glance, wantStop, phase);
             }
+            if (RecordEcho && clock >= nextRecord) Record();
         }
 
         // Heading follows the path a little ahead of the feet, so corners are taken as one
@@ -643,10 +649,140 @@ namespace HarborWatch
             }
             else if (glance) yawTarget = 80f * Mathf.Sin(habitPhase / HabitSeconds[2] * Mathf.PI);
             else if (phone) pitchTarget = 22f;
-            float k = dt <= 0f ? 1f : 1f - Mathf.Exp(-9f * dt);
+            // Replaying an Echo: the recorded head angles are used as they are (no smoothing, no snap).
+            float k = replaying ? 0f : (dt <= 0f ? 1f : 1f - Mathf.Exp(-9f * dt));
             w.HeadYaw += (yawTarget - w.HeadYaw) * k;
             w.HeadPitch += (pitchTarget - w.HeadPitch) * k;
             w.Head.localRotation *= Quaternion.Euler(w.HeadPitch, w.HeadYaw, w.HeadRoll);
+        }
+
+
+        // ------------------------------------------------------- Echo lens
+        // The crowd is recorded about twelve times a second (the pose state that Pose() needs,
+        // not just positions), so an Echo can replay the last EchoWindow seconds exactly: same
+        // gait phase, same raised phone, same turned heads. While it plays Step() is not called,
+        // and EndEcho() puts every person back exactly where the live simulation left them.
+        public const float EchoWindow = 8f, EchoHz = 12f;
+
+        struct Frame
+        {
+            public bool Present, Flinching, OnEar, Phone, Glance, Settled, Moving;
+            public Vector3 Pos;
+            public float Yaw, Phase01, Speed, HabitPhase, ArmR, ArmL, HeadYaw, HeadPitch, HeadRoll;
+        }
+
+        sealed class Snapshot
+        {
+            public float Clock;
+            public bool Alert;
+            public Frame[] People;
+        }
+
+        /// <summary>Set by the controller for cases where the Echo lens is available.</summary>
+        public bool RecordEcho;
+        readonly List<Snapshot> log = new List<Snapshot>();
+        float nextRecord;
+        Snapshot liveBackup;
+        bool replaying;
+        Frame[] scratch = new Frame[0];
+
+        public bool EchoReady { get { return log.Count >= (int)(EchoHz * 2f); } }
+        public bool Echoing { get { return liveBackup != null; } }
+        public float OldestEcho { get { return log.Count == 0 ? 0f : Mathf.Max(log[0].Clock, NewestEcho - EchoWindow); } }
+        public float NewestEcho { get { return log.Count == 0 ? 0f : log[log.Count - 1].Clock; } }
+
+        Snapshot Capture()
+        {
+            var s = new Snapshot { Clock = clock, Alert = CourierAlert, People = new Frame[Walkers.Count] };
+            for (int i = 0; i < Walkers.Count; i++)
+            {
+                var w = Walkers[i];
+                s.People[i] = new Frame
+                {
+                    Present = w.Present, Pos = w.Anchor.position, Yaw = w.Yaw, Phase01 = w.Phase01, Speed = w.CurrentSpeed,
+                    Flinching = w.Flinching, OnEar = w.OnEar, Phone = w.LastPhone, Glance = w.LastGlance, HabitPhase = w.LastHabitPhase,
+                    Settled = w.Settled, Moving = w.Moving,
+                    ArmR = w.RightArm != null ? w.RightArm.Weight : 0f, ArmL = w.LeftArm != null ? w.LeftArm.Weight : 0f,
+                    HeadYaw = w.HeadYaw, HeadPitch = w.HeadPitch, HeadRoll = w.HeadRoll
+                };
+            }
+            return s;
+        }
+
+        void Record()
+        {
+            nextRecord = clock + 1f / EchoHz;
+            log.Add(Capture());
+            while (log.Count > 0 && clock - log[0].Clock > EchoWindow + .5f) log.RemoveAt(0);
+        }
+
+        /// <summary>Freezes the live state and returns false if there is nothing to replay.</summary>
+        public bool BeginEcho()
+        {
+            if (liveBackup != null || log.Count < 2) return false;
+            liveBackup = Capture();
+            return true;
+        }
+
+        /// <summary>Poses everyone as they were at crowd-clock time <paramref name="t"/>.</summary>
+        public void ShowEcho(float t)
+        {
+            if (liveBackup == null || log.Count < 2) return;
+            int i = log.Count - 2;
+            while (i > 0 && log[i].Clock > t) i--;
+            Snapshot a = log[i], b = log[i + 1];
+            float k = Mathf.Clamp01((t - a.Clock) / Mathf.Max(.001f, b.Clock - a.Clock));
+            if (scratch.Length != Walkers.Count) scratch = new Frame[Walkers.Count];
+            for (int n = 0; n < scratch.Length; n++) scratch[n] = Blend(a.People[n], b.People[n], k);
+            ApplyFrames(scratch, t, (k < .5f ? a : b).Alert);
+        }
+
+        /// <summary>Puts every person back exactly where the live simulation left them.</summary>
+        public void EndEcho()
+        {
+            if (liveBackup == null) return;
+            var backup = liveBackup;
+            ApplyFrames(backup.People, backup.Clock, backup.Alert);
+            liveBackup = null;
+        }
+
+        static Frame Blend(Frame a, Frame b, float k)
+        {
+            Frame n = k < .5f ? a : b;   // flags and presence come from the nearer snapshot
+            if (!a.Present || !b.Present || (a.Pos - b.Pos).sqrMagnitude > 4f) return n;   // entering, leaving or jumped
+            n.Pos = Vector3.Lerp(a.Pos, b.Pos, k);
+            n.Yaw = Mathf.LerpAngle(a.Yaw, b.Yaw, k);
+            float dPhase = Mathf.Repeat(b.Phase01 - a.Phase01 + .5f, 1f) - .5f;   // shortest way round the gait cycle
+            n.Phase01 = Mathf.Repeat(a.Phase01 + dPhase * k, 1f);
+            n.Speed = Mathf.Lerp(a.Speed, b.Speed, k);
+            n.ArmR = Mathf.Lerp(a.ArmR, b.ArmR, k); n.ArmL = Mathf.Lerp(a.ArmL, b.ArmL, k);
+            n.HeadYaw = Mathf.Lerp(a.HeadYaw, b.HeadYaw, k); n.HeadPitch = Mathf.Lerp(a.HeadPitch, b.HeadPitch, k);
+            n.HeadRoll = Mathf.Lerp(a.HeadRoll, b.HeadRoll, k);
+            return n;
+        }
+
+        void ApplyFrames(Frame[] frames, float at, bool alert)
+        {
+            clock = at; CourierAlert = alert;
+            for (int i = 0; i < Walkers.Count; i++)
+            {
+                var w = Walkers[i];
+                var f = frames[i];
+                if (w.Anchor.gameObject.activeSelf != f.Present) w.Anchor.gameObject.SetActive(f.Present);
+                w.Present = f.Present;
+                if (!f.Present) continue;
+                w.Anchor.SetPositionAndRotation(f.Pos, Quaternion.Euler(0f, f.Yaw, 0f));
+                w.Yaw = f.Yaw; w.Phase01 = f.Phase01; w.CurrentSpeed = f.Speed;
+                w.Flinching = f.Flinching; w.OnEar = f.OnEar;
+                w.LastPhone = f.Phone; w.LastGlance = f.Glance; w.LastHabitPhase = f.HabitPhase;
+                if (w.RightArm != null) w.RightArm.Weight = f.ArmR;
+                if (w.LeftArm != null) w.LeftArm.Weight = f.ArmL;
+                w.HeadYaw = f.HeadYaw; w.HeadPitch = f.HeadPitch; w.HeadRoll = f.HeadRoll;
+                replaying = true;
+                Pose(w, 0f, f.Phone, f.Glance, false, f.HabitPhase);   // dt = 0: nothing advances
+                replaying = false;
+                w.Settled = f.Settled; w.Moving = f.Moving;
+            }
         }
 
         public void Clear()

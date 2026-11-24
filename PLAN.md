@@ -25,6 +25,7 @@ OBSERVE  ->  PROVOKE  ->  DEDUCE  ->  COMMIT (one shot)  ->  SLOW-MOTION REVEAL 
 | **Dossier drip** | Intel arrives one line at a time (first line free, then every ~10–13 s). Tap a locked line to buy it now (−8 s). | **Patience vs greed.** Tagging early multiplies the score (+250 per unread line), so every case asks "am I sure enough?" |
 | **Unique solution** | The generator guarantees exactly one person matches every line, with near-miss decoys that match all but the last. | Fair, so a mistake feels like *your* mistake. |
 | **Provocations** | **Noise** (horn / bell / neon surge): everyone stops and looks, except the trained courier *and anyone wearing headphones*. **Ping**: every Red Signal cell member touches an earpiece, accomplices included. Each costs points. | You *act on* the crowd instead of just watching it. Headphones and accomplices are fair red herrings. |
+| **Echo lens** (case 4+) | Replay the last 8 s of the crowd once per case for −6 s. | Catches the 2-second reactions you missed, but costs the time you needed to decide. |
 | **Lens heat** | Zooming builds heat. When it maxes, your glint warns the courier: they start running and you have 15 s. | Stops "zoom forever" play and creates time pressure. |
 | **Hold to steady** | Select a person, hold TAG: the ring tightens and your heartbeat plays. Release once it locks. Hold too long and you run out of breath. Passers-by block the line. | Physical tension right before every decision. |
 | **Two shots** | A wrong tag spooks the courier: one more shot and 15 s left. | Second chances without removing the stakes. |
@@ -99,7 +100,7 @@ Each phase ends with a check **you** do on your phone.
 
 ### Phase D · Content and retention
 * Build **Vesper City** and **Solara** 3D sets (the browser has the art references). Until then Unity plays every case in Port Meridian
-* **Echo lens** gadget: rewind the last 8 s of the crowd (the simulation is deterministic, so a snapshot ring buffer makes it cheap)
+* **Echo lens** gadget: replay the last 8 s of the crowd. ✅ Browser done (23 Nov, snapshot ring buffer, once per case from case 4, −6 s). 🟡 Unity port written 24 Nov, needs your first Play session
 * Gadgets as unlocks that add new clue types instead of +18% stats: thermal (who carries a device), directional mic (subtitled whispers), drone (look behind pillars)
 * Weekly "Most Wanted" boss case: multi-stage, the courier swaps jackets at a stall
 * **Optional, strong identity:** Indian city districts (Mumbai CST rush hour, Varanasi ghats at Dev Deepawali, a Nagpur market). A **Holi level** where colour powder makes clothing clues useless, so only behaviour counts

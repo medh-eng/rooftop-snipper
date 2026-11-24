@@ -104,3 +104,74 @@ test('daily case: same courier for the same date, share text without spoilers', 
   assert.equal(await page.evaluate(() => window.__redSignal.game.kase.target), first);
   await browser.close();
 });
+
+test('echo lens: gated to case 4+, costs 6 s, replays the past and restores the live crowd exactly', { skip: !chromium && 'playwright not installed' }, async () => {
+  const browser = await launch();
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto(url);
+  await page.waitForSelector('#title-screen:not([hidden])');
+
+  // Not available in case 3 (index 2), even though it has noise.
+  await page.evaluate(() => window.__redSignal.startCase({ index: 2 }));
+  assert.equal(await page.evaluate(() => window.__redSignal.game.echoOK), false);
+  assert.equal(await page.locator('#echo-btn').isHidden(), true);
+
+  // Available in case 4 (index 3).
+  await page.evaluate(() => window.__redSignal.startCase({ index: 3 }));
+  assert.equal(await page.evaluate(() => window.__redSignal.game.echoOK), true);
+  assert.equal(await page.locator('#echo-btn').isVisible(), true);
+
+  // Too early: nothing recorded yet, no cost.
+  await page.evaluate(() => window.__redSignal.startEcho());
+  assert.equal(await page.evaluate(() => window.__redSignal.game.echo), null);
+  assert.equal(await page.evaluate(() => window.__redSignal.game.echoUsed), false);
+
+  // Let the crowd walk for a while, then remember where one person is and rewind.
+  await page.waitForFunction(() => window.__redSignal.game.t > 4.5, null, { timeout: 12000 });
+  const before = await page.evaluate(() => {
+    const g = window.__redSignal.game;
+    return { t: g.t, left: g.timeLeft, xs: g.people.map(p => p.wx), log: g.echoLog.length, oldest: g.echoLog[0].t };
+  });
+  assert.ok(before.log >= 24, 'snapshots recorded: ' + before.log);
+  await page.click('#echo-btn');
+  const start = await page.evaluate(() => {
+    const g = window.__redSignal.game;
+    return { on: !!g.echo, left: g.timeLeft, from: g.echo.from, xs: g.people.map(p => p.wx), barShown: !document.getElementById('echo-bar').hidden };
+  });
+  assert.equal(start.on, true);
+  assert.equal(start.barShown, true);
+  assert.ok(Math.abs(before.left - start.left - 6) < .5, `cost 6 s (left ${before.left} -> ${start.left})`);
+  assert.ok(start.xs.some((x, i) => Math.abs(x - before.xs[i]) > 3), 'crowd shows earlier positions');
+
+  // The live simulation is frozen while the replay plays, and tagging is blocked.
+  await page.waitForTimeout(600);
+  const mid = await page.evaluate(() => { const g = window.__redSignal.game; return { head: g.echo.head, from: g.echo.from }; });
+  assert.ok(mid.head > mid.from, 'replay advances');
+  await page.evaluate(() => { const g = window.__redSignal.game; g.selected = g.people[0]; window.__redSignal.startHold(); });
+  assert.equal(await page.evaluate(() => window.__redSignal.game.hold), null, 'cannot hold TAG during an Echo');
+
+  // Back to live: exact restore, clock position restored, and a second Echo is refused.
+  await page.click('#echo-skip');
+  const after = await page.evaluate(() => {
+    const g = window.__redSignal.game;
+    return { echo: g.echo, t: g.t, used: g.echoUsed, xs: g.people.map(p => p.wx) };
+  });
+  assert.equal(after.echo, null);
+  assert.ok(after.t >= before.t && after.t < before.t + 1.5, `sim clock restored (${before.t} -> ${after.t})`);
+  assert.equal(after.used, true);
+  assert.ok(after.xs.every((x, i) => Math.abs(x - before.xs[i]) < 90), 'live positions restored (moved only by normal play)');
+  assert.equal(await page.locator('#echo-btn').isDisabled(), true);
+  await page.evaluate(() => window.__redSignal.startEcho());
+  assert.equal(await page.evaluate(() => window.__redSignal.game.echo), null, 'second Echo refused');
+
+  // An Echo that runs to the end returns control by itself (new case, fast-forward the replay).
+  await page.evaluate(() => window.__redSignal.startCase({ index: 3 }));
+  await page.waitForFunction(() => window.__redSignal.game.t > 3, null, { timeout: 12000 });
+  await page.evaluate(() => window.__redSignal.startEcho());
+  await page.evaluate(() => { const g = window.__redSignal.game; g.echo.head = g.echo.to - .05; });
+  await page.waitForFunction(() => window.__redSignal.game.echo === null, null, { timeout: 3000 });
+  assert.deepEqual(errors, []);
+  await browser.close();
+});

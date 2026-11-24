@@ -42,6 +42,7 @@ namespace HarborWatch
             "3  PROVOKE\nHORN: everyone stops and looks, except a trained courier and anyone in headphones.\n" +
             "PING: every Red Signal member touches an earpiece.\n\n" +
             "4  TAG\nTap a person to select. Hold TAG until the ring locks, then release. Passers-by block the shot.\n\n" +
-            "5  BE BRAVE\nTagging before all intel arrives multiplies your score. A wrong tag spooks the courier: one more shot, 15 seconds.";
+            "5  BE BRAVE\nTagging before all intel arrives multiplies your score. A wrong tag spooks the courier: one more shot, 15 seconds.\n\n" +
+            "6  ECHO (case 4 on)\nReplay the last 8 seconds of the crowd, once per case, for 6 seconds of your clock. Catch who did not flinch or who touched an ear. Drag and zoom while it plays.";
     }
 }

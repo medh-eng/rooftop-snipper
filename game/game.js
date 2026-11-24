@@ -80,7 +80,9 @@
       ping: () => { tone(1800, .25, 'sine', .15, .5); tone(1800, .25, 'sine', .12, .5, .3); },
       glint: () => tone(3200, .25, 'sine', .14),
       tick: () => tone(1000, .03, 'square', .05),
-      block: () => tone(300, .15, 'square', .1, .6)
+      block: () => tone(300, .15, 'square', .1, .6),
+      rewind: () => { tone(900, .5, 'sawtooth', .1, .25); noise(.45, .12, 3500); },
+      forward: () => { tone(300, .35, 'sawtooth', .08, 3); }
     };
   })();
 
@@ -133,6 +135,8 @@
   let game = null;          // active case state
   let menuState = { from: 'title' };
 
+  const ECHO_WINDOW = 8, ECHO_COST = 6, ECHO_HZ = 12, ECHO_FROM_CASE = 3;   // case 4 onward
+
   function newGame(cfg, seed, meta) {
     const kase = E.generate(seed, cfg);
     const district = E.DISTRICTS[cfg.district];
@@ -149,7 +153,10 @@
       cam: { x: W / 2, y: H * .66, zoom: vw > vh ? 1.3 : 1 }, selected: null,
       hold: null, shot: null, glint: null, nextGlint: cfg.hunter ? 13 + Math.random() * 6 : Infinity,
       fx: [], birds: [], flash: 0, shake: 0, paused: false, over: false, timeScale: 1,
-      lastBeat: 0, lastTick: 99, coachStep: 0, revealTimes: [0]
+      lastBeat: 0, lastTick: 99, coachStep: 0, revealTimes: [0],
+      // Echo lens: a rolling record of the crowd that can be replayed once per case.
+      echoOK: !!((meta.daily || meta.index >= ECHO_FROM_CASE) && (cfg.noise || cfg.ping)),
+      echoLog: [], echoNext: 0, echoUsed: false, echo: null
     };
     constrain();
     return game;
@@ -212,6 +219,7 @@
   function update(dtReal) {
     const g = game;
     if (!g || g.paused || g.over) return;
+    if (g.echo) { updateEcho(dtReal); hud(); return; }
     if (g.shot) { updateShot(dtReal); return; }
     const dt = dtReal * g.timeScale;
     g.t += dt;
@@ -243,6 +251,7 @@
     }
 
     stepPeople(dt);
+    recordEcho();
 
     // Follow the selected person while the lens is up.
     if (g.lens && g.selected) {
@@ -287,11 +296,63 @@
     audio.bad(); toast(msg + ' · 15 s!', 'bad');
   }
 
+  // --------------------------------------------------------- Echo lens ---
+  // The simulation is frozen while an Echo plays: the crowd is replayed from a
+  // rolling snapshot log, then restored exactly. Costs ECHO_COST seconds, once
+  // per case, so it is a decision, not a free rewind.
+  function recordEcho() {
+    const g = game;
+    if (!g.echoOK || g.t < g.echoNext) return;
+    g.echoNext = g.t + 1 / ECHO_HZ;
+    g.echoLog.push({ t: g.t, p: g.people.map(p => [p.wx, p.facing, p.step, p.moving ? 1 : 0, p.phone, p.ear, p.react, p.dir]) });
+    while (g.echoLog.length && g.t - g.echoLog[0].t > ECHO_WINDOW + .5) g.echoLog.shift();
+  }
+  function startEcho() {
+    const g = game;
+    if (!g || !g.echoOK || g.echoUsed || g.echo || g.shot || g.over || g.paused) return;
+    if (g.echoLog.length < ECHO_HZ * 2) { toast('Nothing to rewind yet. Watch the crowd a little longer'); return; }
+    if (g.timeLeft <= ECHO_COST + 2) { toast('Not enough time left for an Echo', 'bad'); return; }
+    g.hold = null; setFire(false);
+    g.echoUsed = true; g.timeLeft -= ECHO_COST;
+    const last = g.echoLog[g.echoLog.length - 1], from = Math.max(g.echoLog[0].t, last.t - ECHO_WINDOW);
+    g.echo = {
+      from, to: last.t, head: from, speed: 1, liveT: g.t,
+      live: g.people.map(p => ({ wx: p.wx, facing: p.facing, step: p.step, moving: p.moving, phone: p.phone, ear: p.ear, react: p.react, dir: p.dir }))
+    };
+    audio.rewind(); toast('Echo: last ' + Math.round(last.t - from) + ' s of the crowd. Drag and zoom to study it', 'good');
+    applyEcho(from); hud();
+  }
+  function applyEcho(t) {
+    const g = game, log = g.echoLog;
+    let i = log.length - 2; while (i > 0 && log[i].t > t) i--;
+    const a = log[i], b = log[i + 1], k = clamp((t - a.t) / Math.max(.001, b.t - a.t), 0, 1);
+    g.people.forEach((p, n) => {
+      const A = a.p[n], B = b.p[n], src = k < .5 ? A : B;
+      p.wx = lerp(A[0], B[0], k); p.step = lerp(A[2], B[2], k);
+      p.facing = src[1]; p.moving = !!src[3]; p.phone = src[4]; p.ear = src[5]; p.react = src[6]; p.dir = src[7];
+    });
+    g.t = t;   // blinks and reaction fades are drawn from this clock
+  }
+  function updateEcho(dtReal) {
+    const e = game.echo;
+    e.head += dtReal * e.speed;
+    if (e.head >= e.to) { stopEcho(); return; }
+    applyEcho(e.head);
+  }
+  function stopEcho() {
+    const g = game; if (!g || !g.echo) return;
+    g.people.forEach((p, n) => Object.assign(p, g.echo.live[n]));
+    g.t = g.echo.liveT; g.echo = null;
+    audio.forward(); toast('Back to live. The clock is running');
+    lastHud = ''; hud();
+  }
+  const toggleEchoSpeed = () => { const g = game; if (g && g.echo) { g.echo.speed = g.echo.speed === 1 ? .5 : 1; hud(); } };
+
   // ---------------------------------------------------------- Tagging ---
   const STEADY = .95;
   function startHold() {
     const g = game;
-    if (!g || g.over || g.paused || g.shot) return;
+    if (!g || g.over || g.paused || g.shot || g.echo) return;
     if (!g.selected) { toast('Tap a person first to select them'); return; }
     g.hold = { t: 0, locked: false }; setFire(true); audio.unlock();
   }
@@ -352,7 +413,7 @@
   // ------------------------------------------------------ Provocations ---
   function useNoise() {
     const g = game;
-    if (!g || !g.cfg.noise || g.noiseUsed || g.shot || g.over) return;
+    if (!g || !g.cfg.noise || g.noiseUsed || g.shot || g.over || g.echo) return;
     g.noiseUsed = true; g.provocations++; g.noiseAt = g.t;
     const d = g.district;
     g.fx.push({ kind: 'noise', x: d.noiseX, y: d.noiseY, t: 0, life: 1.8 });
@@ -363,7 +424,7 @@
   }
   function usePing() {
     const g = game;
-    if (!g || !g.cfg.ping || g.pingUsed || g.shot || g.over) return;
+    if (!g || !g.cfg.ping || g.pingUsed || g.shot || g.over || g.echo) return;
     g.pingUsed = true; g.provocations++; g.pingAt = g.t;
     g.fx.push({ kind: 'ping', t: 0, life: 1.6 });
     audio.ping(); toast('Ping sent on the cell frequency. Watch for hands to ears');
@@ -383,7 +444,7 @@
     if (!pointer || pointer.id !== e.pointerId) return;
     const r = canvas.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
     if (!pointer.moved && Math.hypot(x - pointer.ox, y - pointer.oy) > 7) pointer.moved = true;
-    if (pointer.moved && !(game.lens && game.selected)) {
+    if (pointer.moved && !(game.lens && game.selected && !game.echo)) {
       game.cam.x -= (x - pointer.x) / scale(); game.cam.y -= (y - pointer.y) / scale(); constrain();
     }
     pointer.x = x; pointer.y = y;
@@ -402,6 +463,7 @@
 
   function tap(x, y) {
     const g = game;
+    if (g.echo) return;   // replayed people are in the past: nothing to select
     if (g.glint) {
       const s = toScreen(g.glint.x, g.glint.y);
       if (Math.hypot(s.x - x, s.y - y) < 46) {
@@ -432,6 +494,7 @@
     if (k === 'm') toggleMark();
     if (k === 'n') useNoise();
     if (k === 'p') usePing();
+    if (k === 'e') { if (game.echo) stopEcho(); else startEcho(); }
     if (k === 'escape') pause(true);
   });
   window.addEventListener('keyup', e => { if (e.key === ' ' && game) releaseHold(); });
@@ -458,6 +521,9 @@
   $('mark-btn').onclick = toggleMark;
   $('noise-btn').onclick = useNoise;
   $('ping-btn').onclick = usePing;
+  $('echo-btn').onclick = startEcho;
+  $('echo-skip').onclick = stopEcho;
+  $('echo-speed').onclick = toggleEchoSpeed;
   $('pause-btn').onclick = () => pause(true);
   $('resume-btn').onclick = () => pause(false);
   $('restart-btn').onclick = () => { $('pause-screen').hidden = true; startCase(game.meta); };
@@ -490,7 +556,7 @@
         d.className = 'clue locked';
         d.dataset.lock = i;
         d.innerHTML = `<span class="n">${i + 1}</span><span class="ic">🔒</span><span class="cd">–</span><em>${i === g.revealed ? 'tap: now −8s' : ''}</em>`;
-        if (i === g.revealed) d.onclick = () => { if (!game.shot && !game.over) revealClue(true); };
+        if (i === g.revealed) d.onclick = () => { if (!game.shot && !game.over && !game.echo) revealClue(true); };
       }
       el.appendChild(d);
     });
@@ -507,9 +573,14 @@
     heat.classList.toggle('on', g.lens || g.heat > .05); heat.classList.toggle('hot', g.heat > .75);
     document.querySelectorAll('.clue.locked .cd').forEach(n => {
       const i = +n.parentNode.dataset.lock;
-      n.textContent = 'in ' + fmt(g.nextReveal - g.t + (i - g.revealed) * g.cfg.reveal);
+      n.textContent = 'in ' + fmt(g.nextReveal - (g.echo ? g.echo.liveT : g.t) + (i - g.revealed) * g.cfg.reveal);
     });
-    const key = [g.shots, g.lens, !!g.selected, g.selected && g.selected.mark, g.noiseUsed, g.pingUsed].join();
+    if (g.echo) {
+      const e = g.echo, k = clamp((e.head - e.from) / (e.to - e.from), 0, 1);
+      $('echo-fill').style.width = (k * 100).toFixed(1) + '%';
+      $('echo-time').textContent = '−' + (e.to - e.head).toFixed(1) + ' s';
+    }
+    const key = [g.shots, g.lens, !!g.selected, g.selected && g.selected.mark, g.noiseUsed, g.pingUsed, g.echoOK, g.echoUsed, !!g.echo, g.echo && g.echo.speed].join();
     if (key === lastHud) return;
     lastHud = key;
     $('hud-shots').innerHTML = '<i></i><i></i>';
@@ -522,7 +593,12 @@
     nb.classList.toggle('used', g.noiseUsed); nb.disabled = g.noiseUsed;
     pb.classList.toggle('used', g.pingUsed); pb.disabled = g.pingUsed;
     $('noise-label').textContent = g.district.noise.split(' ')[1].replace(/^./, c => c.toUpperCase());
-    fireBtn.disabled = !g.selected;
+    fireBtn.disabled = !g.selected || !!g.echo;
+    const eb = $('echo-btn');
+    eb.hidden = !g.echoOK; eb.classList.toggle('used', g.echoUsed); eb.disabled = g.echoUsed || !!g.echo;
+    $('echo-bar').hidden = !g.echo;
+    $('echo-speed').textContent = g.echo && g.echo.speed < 1 ? '½×' : '1×';
+    document.body.classList.toggle('echoing', !!g.echo);
   }
 
   // Tutorial nudges for the first case.
@@ -557,11 +633,12 @@
     for (const e of list) if (e.x > -e.w && e.x < vw + e.w) drawPerson(e);
     for (const e of list) drawPersonUI(e);
 
-    drawBirds();
+    if (!g.echo) drawBirds();
     drawFx();
-    if (g.glint) drawGlint();
+    if (g.glint && !g.echo) drawGlint();
+    if (g.echo) drawEchoOverlay();
     if (g.lens && !g.shot) drawLensVignette();
-    if (!g.lens && !g.shot) drawProjector();
+    if (!g.lens && !g.shot && !g.echo) drawProjector();
     if (g.shot) drawShot();
     if (g.alert && !g.over) { ctx.fillStyle = `rgba(246,77,55,${.06 + .05 * Math.sin(g.t * 8)})`; ctx.fillRect(0, 0, vw, vh); }
     if (g.flash) { ctx.fillStyle = `rgba(255,60,40,${g.flash * .45})`; ctx.fillRect(0, 0, vw, vh); }
@@ -686,9 +763,30 @@
     if (g.hold.locked) { ctx.fillStyle = '#ffd277'; ctx.font = '800 13px "Barlow Condensed"'; ctx.textAlign = 'center'; ctx.fillText('RELEASE', cx, cy + r + 24); }
   }
 
+  // While an Echo plays, rebuild the provocation rings from the replay clock.
+  function echoFx() {
+    const g = game, out = [];
+    const n = g.t - g.noiseAt, p = g.t - g.pingAt;
+    if (n >= 0 && n < 1.8) out.push({ kind: 'noise', x: g.district.noiseX, y: g.district.noiseY, t: n, life: 1.8 });
+    if (p >= 0 && p < 1.6) out.push({ kind: 'ping', t: p, life: 1.6 });
+    return out;
+  }
+
+  function drawEchoOverlay() {
+    ctx.save();
+    ctx.fillStyle = 'rgba(38,92,150,.2)'; ctx.fillRect(0, 0, vw, vh);
+    ctx.strokeStyle = 'rgba(0,0,0,.14)'; ctx.lineWidth = 1; ctx.beginPath();
+    for (let y = 0; y < vh; y += 4) { ctx.moveTo(0, y + .5); ctx.lineTo(vw, y + .5); }
+    ctx.stroke();
+    const grd = ctx.createRadialGradient(vw / 2, vh / 2, Math.min(vw, vh) * .3, vw / 2, vh / 2, Math.max(vw, vh) * .75);
+    grd.addColorStop(0, 'rgba(10,30,60,0)'); grd.addColorStop(1, 'rgba(10,30,60,.55)');
+    ctx.fillStyle = grd; ctx.fillRect(0, 0, vw, vh);
+    ctx.restore();
+  }
+
   function drawFx() {
     const g = game;
-    for (const f of g.fx) {
+    for (const f of (g.echo ? echoFx() : g.fx)) {
       const k = f.t / f.life;
       if (f.kind === 'noise') {
         const s = toScreen(f.x, f.y);
@@ -916,7 +1014,7 @@
         if (best) stars += best.stars;
         const b = document.createElement('button'); b.className = 'case-card'; b.disabled = !open;
         b.style.backgroundImage = `url(${asset('../assets/scenes/' + d.id + '-roof.webp')})`;
-        const newIdea = c.noise && !E.CASES.slice(0, i).some(x => x.noise) ? 'NEW: noise' : c.ping && !E.CASES.slice(0, i).some(x => x.ping) ? 'NEW: ping' : c.hunter && !E.CASES.slice(0, i).some(x => x.hunter) ? 'NEW: hunter' : '';
+        const newIdea = c.noise && !E.CASES.slice(0, i).some(x => x.noise) ? 'NEW: noise' : c.ping && !E.CASES.slice(0, i).some(x => x.ping) ? 'NEW: ping' : c.hunter && !E.CASES.slice(0, i).some(x => x.hunter) ? 'NEW: hunter' : i === ECHO_FROM_CASE ? 'NEW: echo' : '';
         b.innerHTML = `${newIdea && open ? `<span class="new-tag">${newIdea}</span>` : ''}<span class="no">CASE ${String(i + 1).padStart(2, '0')}</span><b>${c.name}</b><span class="st">${best ? '★'.repeat(best.stars) + '☆'.repeat(3 - best.stars) : open ? '' : '🔒'}</span>`;
         b.onclick = () => openBrief(i);
         sec.querySelector('.cards').appendChild(b);
@@ -944,6 +1042,7 @@
     if (cfg.noise) facts.push(['📣', `${d.noise}: everyone looks, except the trained courier`]);
     if (cfg.ping) facts.push(['📡', 'Cell ping: Red Signal members touch their earpiece']);
     if (cfg.hunter) facts.push(['✨', 'Counter-sniper: tap rooftop glints']);
+    if ((daily || index >= ECHO_FROM_CASE) && (cfg.noise || cfg.ping)) facts.push(['⏪', `Echo lens: replay the last ${ECHO_WINDOW} s of the crowd, once (−${ECHO_COST} s)`]);
     $('brief-facts').innerHTML = facts.map(f => `<li><span>${f[0]}</span>${f[1]}</li>`).join('');
     $('begin-btn').onclick = () => { audio.unlock(); startCase(meta); };
     show('brief');
@@ -991,7 +1090,7 @@
   // Test hook for automated play-throughs (no effect on normal play).
   globalThis.__redSignal = {
     get game() { return game; }, startCase, openDaily, show, tap, toScreen, project, startHold, releaseHold,
-    useNoise, usePing, toggleLens, revealClue: () => revealClue(true), endCase
+    useNoise, usePing, toggleLens, revealClue: () => revealClue(true), endCase, startEcho, stopEcho
   };
 
   resize();

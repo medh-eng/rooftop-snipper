@@ -21,6 +21,9 @@ namespace HarborWatch
 
         const string SavePrefix = "RedSignal.FindTheOne.v1.";
         const float DefaultFov = 54f, LensFov = 21f, MinFov = 18f, MaxFov = 62f, Steady = .95f;
+        // Echo lens: replay the last CaseCrowd.EchoWindow seconds once per case, from case 4, for EchoCost seconds.
+        const float EchoCost = 6f;
+        const int EchoFromCase = 3;
         static readonly Vector3 Roof = new Vector3(-10f, 10.5f, -12f);
         // Rooftop and crane positions around the concourse where a counter-sniper can appear.
         static readonly Vector3[] GlintSpots =
@@ -46,6 +49,9 @@ namespace HarborWatch
         float t, timeLeft, nextReveal, heat, lastBeat, lastTick = 99f;
         int revealed, intelBought, shots, wrongTags, provocations, revealedAtTag;
         bool noiseUsed, pingUsed, over;
+        // Echo lens
+        bool echoOK, echoUsed, echoing;
+        float echoHead, echoTo, echoFrom, echoSpeed = 1f;
         CaseCrowd.Walker selected;
         // Tag hold and slow-motion shot
         bool holding, locked;
@@ -204,6 +210,9 @@ namespace HarborWatch
             t = 0f; timeLeft = cfg.Time; nextReveal = cfg.Reveal; heat = 0f;
             revealed = 1; intelBought = 0; shots = 2; wrongTags = 0; provocations = 0; revealedAtTag = 0;
             noiseUsed = pingUsed = over = false;
+            echoOK = (daily || caseIndex >= EchoFromCase) && (cfg.Noise || cfg.Ping);
+            echoUsed = echoing = false; echoSpeed = 1f;
+            crowd.RecordEcho = echoOK;
             selected = null; holding = locked = false; shotT = -1f;
             glintOn = false; nextGlint = cfg.Hunter ? 13f + UnityEngine.Random.value * 6f : float.MaxValue;
             lastTick = 99f; freshClue = 0; freshLeft = 1.2f;
@@ -234,7 +243,7 @@ namespace HarborWatch
 
         void UseNoise()
         {
-            if (!cfg.Noise || noiseUsed || shotT >= 0f || over) return;
+            if (!cfg.Noise || noiseUsed || shotT >= 0f || over || echoing) return;
             noiseUsed = true; provocations++;
             crowd.Noise();
             Play(bank.Horn);
@@ -243,7 +252,7 @@ namespace HarborWatch
 
         void UsePing()
         {
-            if (!cfg.Ping || pingUsed || shotT >= 0f || over) return;
+            if (!cfg.Ping || pingUsed || shotT >= 0f || over || echoing) return;
             pingUsed = true; provocations++;
             crowd.Ping();
             Play(bank.Ping);
@@ -261,9 +270,41 @@ namespace HarborWatch
             selected.Marked = !selected.Marked;
         }
 
+        // ------------------------------------------------------ Echo lens
+        void StartEcho()
+        {
+            if (page != Page.Play || !echoOK || echoUsed || echoing || over || paused || shotT >= 0f) return;
+            if (!crowd.EchoReady) { Toast("Nothing to rewind yet. Watch the crowd a little longer", Color.white); return; }
+            if (timeLeft <= EchoCost + 2f) { Toast("Not enough time left for an Echo", Red); return; }
+            if (!crowd.BeginEcho()) return;
+            holding = locked = false;
+            echoUsed = true; timeLeft -= EchoCost;
+            echoFrom = echoHead = crowd.OldestEcho; echoTo = crowd.NewestEcho; echoSpeed = 1f;
+            echoing = true;
+            crowd.ShowEcho(echoHead);
+            Play(bank.Rewind);
+            Toast("Echo: last " + Mathf.RoundToInt(echoTo - echoFrom) + " s of the crowd. Drag and zoom to study it", Gold);
+        }
+
+        void UpdateEcho(float realDt)
+        {
+            echoHead += realDt * echoSpeed;
+            if (echoHead >= echoTo) { StopEcho(); return; }
+            crowd.ShowEcho(echoHead);
+        }
+
+        void StopEcho()
+        {
+            if (!echoing) return;
+            crowd.EndEcho();
+            echoing = false;
+            Play(bank.Forward);
+            Toast("Back to live. The clock is running", Color.white);
+        }
+
         void StartHold()
         {
-            if (over || paused || shotT >= 0f) return;
+            if (over || paused || shotT >= 0f || echoing) return;
             if (selected == null) { Toast("Tap a person first to select them", Color.white); return; }
             holding = true; locked = false; holdT = 0f;
         }
@@ -402,13 +443,14 @@ namespace HarborWatch
             else if (page != Page.Play) crowd.Step(dt);
             toastLeft -= realDt; freshLeft -= realDt; flash = Mathf.Max(0f, flash - realDt * 2f);
             if (shotT < 0f) fov = Mathf.Lerp(fov, targetFov, 1f - Mathf.Pow(.001f, realDt));
-            if (page == Page.Play && !paused && LensOn && selected != null && shotT < 0f)
+            if (page == Page.Play && !paused && LensOn && selected != null && shotT < 0f && !echoing)
                 AimAt(selected.Chest, 1f - Mathf.Pow(.02f, realDt));
             ApplyCamera();
         }
 
         void UpdatePlay(float dt, float realDt)
         {
+            if (echoing) { UpdateEcho(realDt); return; }   // the live crowd is frozen while an Echo plays
             if (shotT >= 0f) { UpdateShot(realDt); crowd.Step(dt); return; }
             crowd.Step(dt);
             if (over) return;
@@ -491,7 +533,7 @@ namespace HarborWatch
             if (pointerDown && held)
             {
                 if (!dragging && !downOnUi && (raw - downPos).magnitude > 8f * u) dragging = true;
-                if (dragging && page == Page.Play && !paused && shotT < 0f && !(LensOn && selected != null))
+                if (dragging && page == Page.Play && !paused && shotT < 0f && !(LensOn && selected != null && !echoing))
                 {
                     Vector2 delta = raw - lastPos;
                     float sensitivity = 92f / Mathf.Max(320f, Screen.width) * (fov / DefaultFov);
@@ -508,7 +550,7 @@ namespace HarborWatch
                 if (dragging) { dragging = false; return; }
                 int hit = HitButton(gui);
                 if (hit >= 0) { buttons[hit].Value(); return; }
-                if (page == Page.Play && !paused && !over && shotT < 0f) Tap(gui);
+                if (page == Page.Play && !paused && !over && shotT < 0f && !echoing) Tap(gui);
             }
         }
 
@@ -708,6 +750,7 @@ namespace HarborWatch
             if (cfg.Noise) facts.Add("HORN: everyone looks, except the trained courier");
             if (cfg.Ping) facts.Add("PING: Red Signal members touch their earpiece");
             if (cfg.Hunter) facts.Add("Counter-sniper: tap rooftop glints");
+            if (caseIndex >= EchoFromCase && (cfg.Noise || cfg.Ping)) facts.Add("ECHO: replay the last " + (int)CaseCrowd.EchoWindow + " s of the crowd, once (-" + (int)EchoCost + " s)");
             float fy = y + 144 * u;
             foreach (var f in facts) { Fill(new Rect(x, fy, w, 30 * u), new Color(1, 1, 1, .05f)); Text(new Rect(x + 10 * u, fy + 4 * u, w, 26 * u), f, small, Ink); fy += 34 * u; }
             float bw = (w - 10 * u) * .5f, by = Mathf.Min(fy + 14 * u, s.yMax - 70 * u);
@@ -740,6 +783,12 @@ namespace HarborWatch
             {
                 float bar = Mathf.Min(1f, shotT * 4f) * Screen.height * .08f;
                 Fill(new Rect(0, 0, Screen.width, bar), Color.black); Fill(new Rect(0, Screen.height - bar, Screen.width, bar), Color.black);
+            }
+            if (echoing)
+            {
+                Fill(new Rect(0, 0, Screen.width, Screen.height), new Color(.15f, .36f, .59f, .2f));
+                float line = Mathf.Max(1f, u), pitch = 5f * u;
+                for (float yy = 0f; yy < Screen.height; yy += pitch) Fill(new Rect(0, yy, Screen.width, line), new Color(0, 0, 0, .13f));
             }
             if (crowd.CourierAlert && !over) Fill(new Rect(0, 0, Screen.width, Screen.height), new Color(Red.r, Red.g, Red.b, .05f + .04f * Mathf.Sin(Time.unscaledTime * 8f)));
             if (flash > 0f) Fill(new Rect(0, 0, Screen.width, Screen.height), new Color(1f, .24f, .16f, flash * .45f));
@@ -777,7 +826,7 @@ namespace HarborWatch
                 Frame(r, open ? new Color(1, 1, 1, .16f) : new Color(1, .82f, .47f, .3f), Mathf.Max(1f, u));
                 Text(r, text, chip, open ? Ink : new Color(.68f, .7f, .68f));
                 if (!open && i == revealed && Event.current.type == EventType.Repaint)
-                    buttons.Add(new KeyValuePair<Rect, Action>(r, () => { if (!over && shotT < 0f) Reveal(true); }));
+                    buttons.Add(new KeyValuePair<Rect, Action>(r, () => { if (!over && shotT < 0f && !echoing) Reveal(true); }));
                 cx += w + 6 * u;
             }
 
@@ -791,17 +840,33 @@ namespace HarborWatch
                 Text(tr, toast, ts, toastColour);
             }
 
-            // Bottom controls
-            float bs = 62 * u, by = s.yMax - bs - 12 * u, bx = s.x + 10 * u;
+            // Bottom controls (smaller when all five fit: lens, mark, horn, ping, echo)
+            int tools = 2 + (cfg.Noise ? 1 : 0) + (cfg.Ping ? 1 : 0) + (echoOK ? 1 : 0);
+            float bs = (tools >= 5 ? 48 : 62) * u, gap = (tools >= 5 ? 4 : 6) * u, by = s.yMax - bs - 12 * u, bx = s.x + 10 * u;
             Button(new Rect(bx, by, bs, bs), "LENS", ToggleLens, LensOn ? new Color(.35f, .27f, .08f, .92f) : Panel);
-            Button(new Rect(bx + (bs + 6 * u), by, bs, bs), selected != null && selected.Marked ? "UNMARK" : "MARK", ToggleMark, Panel, selected != null);
-            float nx = bx + 2 * (bs + 6 * u);
-            if (cfg.Noise) { Button(new Rect(nx, by, bs, bs), "HORN", UseNoise, Panel, !noiseUsed); nx += bs + 6 * u; }
-            if (cfg.Ping) Button(new Rect(nx, by, bs, bs), "PING", UsePing, Panel, !pingUsed);
+            Button(new Rect(bx + (bs + gap), by, bs, bs), selected != null && selected.Marked ? "UNMARK" : "MARK", ToggleMark, Panel, selected != null && !echoing);
+            float nx = bx + 2 * (bs + gap);
+            if (cfg.Noise) { Button(new Rect(nx, by, bs, bs), "HORN", UseNoise, Panel, !noiseUsed && !echoing); nx += bs + gap; }
+            if (cfg.Ping) { Button(new Rect(nx, by, bs, bs), "PING", UsePing, Panel, !pingUsed && !echoing); nx += bs + gap; }
+            if (echoOK) Button(new Rect(nx, by, bs, bs), "ECHO", StartEcho, echoing ? new Color(.1f, .26f, .42f, .92f) : Panel, !echoUsed && !echoing);
+            if (echoing)
+            {
+                float ew = s.width - 20 * u, ex = s.x + 10 * u, ey = by - 54 * u, eh = 44 * u;
+                Fill(new Rect(ex, ey, ew, eh), new Color(.055f, .15f, .26f, .9f));
+                Frame(new Rect(ex, ey, ew, eh), new Color(.5f, .78f, 1f, .5f), Mathf.Max(1f, u));
+                Text(new Rect(ex + 8 * u, ey, 60 * u, eh), "<b>ECHO</b>", small, new Color(.62f, .83f, 1f));
+                float trackX = ex + 64 * u, trackW = ew - 64 * u - 52 * u - 56 * u - 112 * u;
+                float prog = Mathf.Clamp01((echoHead - echoFrom) / Mathf.Max(.01f, echoTo - echoFrom));
+                Fill(new Rect(trackX, ey + eh * .5f - 2 * u, trackW, 4 * u), new Color(1, 1, 1, .14f));
+                Fill(new Rect(trackX, ey + eh * .5f - 2 * u, trackW * prog, 4 * u), new Color(.62f, .83f, 1f));
+                Text(new Rect(trackX + trackW + 6 * u, ey, 50 * u, eh), "-" + (echoTo - echoHead).ToString("0.0") + "s", small, Ink);
+                Button(new Rect(ex + ew - 164 * u, ey + 5 * u, 50 * u, eh - 10 * u), echoSpeed < 1f ? "1/2x" : "1x", () => echoSpeed = echoSpeed < 1f ? 1f : .5f, new Color(0, 0, 0, .35f));
+                Button(new Rect(ex + ew - 108 * u, ey + 5 * u, 102 * u, eh - 10 * u), "LIVE", StopEcho, new Color(0, 0, 0, .35f));
+            }
             float tagSize = 100 * u;
             tagRect = new Rect(s.xMax - tagSize - 12 * u, s.yMax - tagSize - 12 * u, tagSize, tagSize);
             var prev = GUI.color;
-            GUI.color = selected == null ? new Color(.45f, .45f, .45f, .9f) : holding ? Gold : Red;
+            GUI.color = selected == null || echoing ? new Color(.45f, .45f, .45f, .9f) : holding ? Gold : Red;
             GUI.DrawTexture(tagRect, disc);
             GUI.color = new Color(1, 1, 1, .9f);
             GUI.DrawTexture(tagRect, ring);
@@ -815,7 +880,7 @@ namespace HarborWatch
                 Text(new Rect(x, y, w, 50 * u), "Paused", new GUIStyle(title) { alignment = TextAnchor.MiddleCenter }, Ink);
                 Button(new Rect(x, y + 60 * u, w, 52 * u), "Resume", () => paused = false, Red);
                 Button(new Rect(x, y + 120 * u, w, 52 * u), "Restart", () => { if (daily) StartDaily(); else StartCase(caseIndex); }, Panel);
-                Button(new Rect(x, y + 180 * u, w, 52 * u), "Quit case", () => { paused = false; Time.timeScale = 1f; page = daily ? Page.Menu : Page.Cases; }, Panel);
+                Button(new Rect(x, y + 180 * u, w, 52 * u), "Quit case", () => { StopEcho(); paused = false; Time.timeScale = 1f; page = daily ? Page.Menu : Page.Cases; }, Panel);
             }
         }
 

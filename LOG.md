@@ -68,3 +68,44 @@ Compile-check builds, core tests 6/6, `node --test` 53/53, route-check all route
 
 ### Not verified
 Not run in Unity again. The arm IK and prop offsets need a look in Play mode (see STATUS.md).
+
+
+## 2026-11-23 (night): Echo lens in the browser prototype
+Next item from PLAN Phase D. Browser first, because it is the design lab and can be verified here; Unity port waits for your feedback on how it plays.
+
+### Added
+* `game/game.js`: rolling snapshot log of the crowd (12 per second, last 8 s). **Echo** replays it with the simulation frozen, then restores the live state exactly. Once per case, from case 4 (or a Daily with noise or ping), costs 6 s, refused with under 8 s left. Replay speed 1× or ½×, early exit, **E** key. TAG, provocations and selection are blocked during a replay. Blue tint and scan lines, "!" and earpiece cues, horn and surge rings rebuilt from the replay clock. Synthesised rewind and forward sounds.
+* `game/index.html`, `game/style.css`: Echo tool button, replay bar (progress, time to live, speed, *Back to live*), How to play entry, brief line, "NEW: echo" tag on case 4. Tool buttons shrink to 50 px under 430 px wide so five fit in a row on a 390 px phone.
+* `tests/find-the-one-browser.cjs`: Echo test (gating, cost, replay shows earlier positions, TAG blocked, exact restore, once only, auto-return).
+
+### Fixed while testing
+* Dossier countdowns jumped back during a replay because the HUD read the replay clock. They now use the live clock.
+
+### Verified
+`node --test tests/*.test.cjs` 53/53, browser tests 4/4 (Chrome, phone touch and desktop), route-check clear, offline build works. Screenshots checked at 390×844 (live, replay, replay at the horn moment, five tool buttons).
+
+### Not verified
+* Not played on a real phone. At 360 px wide the five buttons wrap to two rows (no overlap).
+* Not in Unity (see STATUS "Echo lens").
+
+### Next
+1. Pon: play case 4 to 6 and a Daily on your phone and say whether Echo feels like a smart choice or a crutch. If it is too strong, raise `ECHO_COST` or shorten `ECHO_WINDOW`.
+2. Then either port Echo to Unity or start the next Phase D idea (gadgets that add clue types: thermal, directional mic).
+
+
+## 2026-11-24: Echo lens ported to Unity
+Next step after the browser version. Same rules, so a case plays the same on both builds.
+
+### Added
+* `CaseCrowd.cs`: Echo section. 12 Hz ring buffer (last 8 s plus margin) of each person's pose state; `BeginEcho`, `ShowEcho(t)` (blends two snapshots: positions, heading, shortest-way gait phase, arm and head angles; flags from the nearer one), `EndEcho` (exact restore). Replay goes through `Pose()` with dt = 0, and a `replaying` flag makes the head use the recorded angles instead of snapping. The walker remembers the phone, glance and habit-phase flags it was last given.
+* `FindTheOneController.cs`: `StartEcho`, `UpdateEcho`, `StopEcho`; ECHO button and replay bar; blue tint and scan lines; brief line; guards so TAG, HORN, PING, tap-select and buying intel are blocked during a replay (drag, pinch and lens stay free); Quit case ends a running replay first. When a case has five tools they shrink to fit beside TAG.
+* `FindTheOneAudio.cs` (rewind and forward sounds), `FindTheOneText.cs` (How to play entry).
+
+### Environment
+* Installed the .NET 8 SDK in the session (`apt-get install dotnet-sdk-8.0`) so the compile check and core tests run again.
+
+### Verified
+`dotnet build tools/unity-compile-check` succeeded (0 errors), `dotnet run --project tools/core-tests` 6/6, `node --test tests/*.test.cjs` 53/53, route-check clear.
+
+### Not verified
+Not run in Unity. The compile check cannot catch wrong behaviour. See STATUS "Needs checking" for the Echo items to look at in Play mode.

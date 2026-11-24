@@ -9,7 +9,7 @@ namespace HarborWatch
     public sealed class FindTheOneAudio
     {
         const int Rate = 22050;
-        public AudioClip Beat, Lock, Shot, Good, Bad, Horn, Ping, Glint, Tick, Clue, Block, Select;
+        public AudioClip Beat, Lock, Shot, Good, Bad, Horn, Ping, Glint, Tick, Clue, Block, Select, Rewind, Forward;
 
         public FindTheOneAudio()
         {
@@ -24,6 +24,8 @@ namespace HarborWatch
             Tick = Make("Tick", .04f, (t, i) => Env(t, .03f) * Square(1000, t) * .15f);
             Clue = Make("Intel", .3f, (t, i) => Env(t, .12f) * Sine(880, t) * .35f + Env(t - .08f, .18f) * Sine(1320, t) * .3f);
             Block = Make("Blocked", .2f, (t, i) => Env(t, .15f) * Square(300 - t * 600, t) * .2f);
+            Rewind = Make("Echo rewind", .5f, (t, i) => Env(t, .5f) * Saw(900 - t * 1300, t) * .12f + Env(t, .45f) * Noise(i) * .1f);
+            Forward = Make("Echo forward", .35f, (t, i) => Env(t, .35f) * Saw(300 + t * 900, t) * .1f);
             Select = Make("Select", .07f, (t, i) => Env(t, .06f) * Square(620, t) * .12f);
         }
 
