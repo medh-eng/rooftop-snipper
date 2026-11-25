@@ -20,3 +20,15 @@
 *.aab
 *.keystore
 *.jks
+
+# Stray Unity project at unity/ (opened by mistake): never commit its generated folders.
+# The real game project is unity/HarborWatch.
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Bb]uild/
+/[Bb]uilds/
+/*.csproj
+/*.sln
