@@ -49,7 +49,9 @@ test('Phase 4 adds a separate drone scene while keeping Phase 3 first',()=>{
   assert.doesNotMatch(crowdScene,/droneMode: 1/);
   const scenes = [...buildSettings.matchAll(/path: (Assets\/Scenes\/[^\n]+)/g)]
     .map(m=>m[1]);
-  assert.deepEqual(scenes.slice(0,4),[
+  // Find the One is the product now and comes first; the older phases keep this relative order.
+  assert.equal(scenes[0], 'Assets/Scenes/FindTheOne.unity');
+  assert.deepEqual(scenes.slice(1,5),[
     'Assets/Scenes/HarborMission.unity',
     'Assets/Scenes/WalkReview.unity',
     'Assets/Scenes/HarborCrowd.unity',

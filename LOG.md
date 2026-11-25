@@ -109,3 +109,17 @@ Next step after the browser version. Same rules, so a case plays the same on bot
 
 ### Not verified
 Not run in Unity. The compile check cannot catch wrong behaviour. See STATUS "Needs checking" for the Echo items to look at in Play mode.
+
+
+## 2026-11-25: Unity would not start, case 4 not visible
+Pon reported that in Unity the game did not start and case 4 could not be seen. There is no Unity Editor here, so the cause could not be reproduced; these are the problems found by reading the project, each fixed:
+* **Case 4 locked by design.** `Unlocked(i)` needs stars on case i-1, so a fresh install could not reach case 4 or Echo. Editor and Development builds now open every case (`DevUnlock`, labelled "DEV: all cases open"); release builds keep the lock.
+* **Wrong scene.** Build Settings listed `HarborMission` first and `FindTheOne` fifth, so File > Build ran the old scene. `FindTheOne` is now first. Added menu *Harbor Watch > Find The One > Open scene*.
+* **Silent failure.** `Begin()` returned quietly when `CaseCrowd.Build` failed, so "Take position" did nothing. Starting a case, the attract-mode build and `Update` now catch errors and show them as a red bar with an OK button (also logged). 
+* **No automatic check in Unity.** Added PlayMode tests (`Tests/PlayMode/FindTheOnePlayTests.cs`): load the scene, start every campaign case and the Daily, check the clock runs and there is no error, and check the Echo lens replays, costs 6 s, restores the crowd and refuses a second use. They use reflection because the controller is in Assembly-CSharp. Not run yet.
+* Checked and fine: scene GUIDs and `findTheOneMode: 1`, Input System active (`activeInputHandler: 1`), asmdefs, all eight bones in both FBX files.
+* Added `CLAUDE.md` (repo), `unity/HarborWatch/CLAUDE.md` and `docs/CLAUDE_CODE_PROMPTS.md` so Claude Code on Pon's PC can run Unity in batch mode, read the real errors and fix them in a loop.
+
+Verified: compile check, core tests 6/6, JS tests 53/53 (two older scene-order tests updated: Find the One is now first in Build Settings), browser tests 4/4. Not verified: anything in Unity, including the new PlayMode tests.
+
+Next: Pon runs prompt 1 of `docs/CLAUDE_CODE_PROMPTS.md` in Claude Code on the PC (pull the branch first).

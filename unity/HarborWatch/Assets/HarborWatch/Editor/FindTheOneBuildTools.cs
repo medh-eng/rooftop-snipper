@@ -16,6 +16,14 @@ namespace HarborWatch.Editor
     {
         const string Scene = "Assets/Scenes/FindTheOne.unity";
 
+        [MenuItem("Harbor Watch/Find The One/Open scene (then press Play)")]
+        public static void OpenScene()
+        {
+            if (!UnityEditor.SceneManagement.EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+            UnityEditor.SceneManagement.EditorSceneManager.OpenScene(Scene);
+            Debug.Log("Find the One scene is open. Press Play in the Game view. All cases are open in the Editor (dev unlock).");
+        }
+
         [MenuItem("Harbor Watch/Find The One/Verify")]
         public static void VerifyMenu()
         {

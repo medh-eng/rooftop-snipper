@@ -74,6 +74,9 @@ namespace HarborWatch
         string resultTitle = "", resultLine = "", share = "";
         // Feedback
         string toast = "";
+        // Shown as a red bar on every page, so a failure is visible on a phone (no Console there).
+        string errorText = "";
+        bool updateFaulted;
         float toastLeft, flash;
         Color toastColour = Color.white;
         int freshClue = -1;
@@ -110,7 +113,8 @@ namespace HarborWatch
             BuildTextures();
             ResetCamera();
             // Attract mode: a live crowd behind the menu.
-            crowd.Build(review.ConcourseRoot, review.SourceMaterial, CaseEngine.Generate(7u, CaseEngine.Cases[3]));
+            if (!crowd.Build(review.ConcourseRoot, review.SourceMaterial, CaseEngine.Generate(7u, CaseEngine.Cases[3])))
+                errorText = "Could not build the crowd. Check Assets/HarborWatch/Resources has CrowdWalk.fbx, CrowdJog.fbx and ReviewSurface.mat (see Console).";
         }
 
         void BuildTextures()
@@ -205,8 +209,30 @@ namespace HarborWatch
 
         void Begin(uint seed)
         {
+            try { BeginCase(seed); }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                Fail("Could not start the case: " + e.GetType().Name + ": " + e.Message);
+            }
+        }
+
+        void Fail(string message)
+        {
+            errorText = message;
+            Time.timeScale = 1f;
+            if (page == Page.Play || page == Page.Result) page = daily ? Page.Menu : Page.Cases;
+        }
+
+        void BeginCase(uint seed)
+        {
+            errorText = "";
             kase = CaseEngine.Generate(seed, cfg);
-            if (!crowd.Build(review.ConcourseRoot, review.SourceMaterial, kase)) return;
+            if (!crowd.Build(review.ConcourseRoot, review.SourceMaterial, kase))
+            {
+                Fail("Could not build the crowd. Check Assets/HarborWatch/Resources has CrowdWalk.fbx, CrowdJog.fbx and ReviewSurface.mat (see Console).");
+                return;
+            }
             t = 0f; timeLeft = cfg.Time; nextReveal = cfg.Reveal; heat = 0f;
             revealed = 1; intelBought = 0; shots = 2; wrongTags = 0; provocations = 0; revealedAtTag = 0;
             noiseUsed = pingUsed = over = false;
@@ -401,7 +427,9 @@ namespace HarborWatch
         void ShowResult() { page = Page.Result; }
 
         int Stars(int index) { return PlayerPrefs.GetInt(SavePrefix + "Case." + index + ".Stars", 0); }
-        bool Unlocked(int index) { return index == 0 || Stars(index - 1) > 0; }
+        // Editor and Development builds open every case so each one can be tested; release builds keep the star lock.
+        static bool DevUnlock { get { return Application.isEditor || Debug.isDebugBuild; } }
+        bool Unlocked(int index) { return index == 0 || Stars(index - 1) > 0 || DevUnlock; }
 
         static string Clock(float seconds)
         {
@@ -437,6 +465,15 @@ namespace HarborWatch
         void Update()
         {
             if (!crowd) return;
+            try { UpdateFrame(); }
+            catch (Exception e)
+            {
+                if (!updateFaulted) { updateFaulted = true; Debug.LogException(e); errorText = "Runtime error: " + e.GetType().Name + ": " + e.Message; }
+            }
+        }
+
+        void UpdateFrame()
+        {
             float dt = Time.deltaTime, realDt = Time.unscaledDeltaTime;
             HandlePointer();
             if (page == Page.Play && !paused) UpdatePlay(dt, realDt);
@@ -677,6 +714,17 @@ namespace HarborWatch
                 case Page.Play: DrawPlay(s); break;
                 case Page.Result: DrawPlay(s); DrawResult(s); break;
             }
+            if (errorText.Length > 0) DrawError(s);
+        }
+
+        void DrawError(Rect s)
+        {
+            float h = 76 * u, y = s.yMax - h - 6 * u;
+            var r = new Rect(s.x + 6 * u, y, s.width - 12 * u, h);
+            Fill(r, new Color(.35f, .05f, .05f, .96f));
+            Frame(r, Red, Mathf.Max(1f, u));
+            Text(new Rect(r.x + 8 * u, r.y, r.width - 70 * u, r.height), errorText, small, Color.white);
+            Button(new Rect(r.xMax - 58 * u, r.y + 8 * u, 50 * u, r.height - 16 * u), "OK", () => { errorText = ""; updateFaulted = false; }, new Color(0, 0, 0, .4f));
         }
 
         void DrawMenu(Rect s)
@@ -717,7 +765,7 @@ namespace HarborWatch
             Button(new Rect(s.x + 10 * u, s.y + 10 * u, 54 * u, 44 * u), "<", () => page = Page.Menu, Panel);
             int total = 0;
             for (int i = 0; i < CaseEngine.Cases.Length; i++) total += Stars(i);
-            Text(new Rect(s.x + 76 * u, s.y + 10 * u, s.width, 44 * u), "Campaign   <size=" + (int)(16 * u) + ">★ " + total + " / " + CaseEngine.Cases.Length * 3 + "</size>", title, Ink);
+            Text(new Rect(s.x + 76 * u, s.y + 10 * u, s.width, 44 * u), "Campaign   <size=" + (int)(16 * u) + ">★ " + total + " / " + CaseEngine.Cases.Length * 3 + (DevUnlock ? "   DEV: all cases open" : "") + "</size>", title, Ink);
             float top = s.y + 66 * u, rows = 6, gap = 8 * u;
             float h = Mathf.Min(86 * u, (s.height - (top - s.y) - 20 * u) / rows - gap), w = (s.width - 30 * u) * .5f;
             for (int i = 0; i < CaseEngine.Cases.Length; i++)

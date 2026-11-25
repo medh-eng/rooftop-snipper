@@ -31,3 +31,5 @@ namespace UnityEditor.Build.Reporting
     public class BuildSummary { public BuildResult result; }
     public class BuildReport { public BuildSummary summary; }
 }
+
+namespace UnityEditor.SceneManagement { public static class EditorSceneManager { public static bool SaveCurrentModifiedScenesIfUserWantsTo() => true; public static UnityEngine.SceneManagement.Scene OpenScene(string path) => default; } }

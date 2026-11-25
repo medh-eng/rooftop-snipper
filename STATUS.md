@@ -14,6 +14,7 @@ Plan: [PLAN.md](PLAN.md) · History: [LOG.md](LOG.md)
 | ChatGPT's existing Unity scenes | 🟢 Compile errors fixed | 4 errors would have blocked Play mode (see LOG). All 42 of its Node tests still pass |
 | Vesper City / Solara 3D sets | ⬜ Not started | Unity plays every case on the Port Meridian concourse for now |
 | Echo lens (browser) `game/game.js` | ✅ Playable | Browser test: gated to case 4+, −6 s, replays earlier crowd, exact restore, once per case. Screenshots at phone size |
+| Unity start-up fixes (25 Nov) | 🟡 Written, **not yet run in Unity** | Reported: case 4 not visible, game not starting. Fixes: all cases open in Editor/dev builds, FindTheOne first in Build Settings, red on-screen error bar, PlayMode smoke tests |
 | Echo lens (Unity) | 🟡 Written, **not yet run in Unity** | Compiles against Unity API stand-ins. Needs your Play session (see "Needs checking") |
 | Android APK | ⬜ Not built | Use *Harbor Watch → Find The One → Build Android Development APK* |
 

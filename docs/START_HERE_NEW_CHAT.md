@@ -7,6 +7,8 @@ Read [PLAN.md](../PLAN.md), [STATUS.md](../STATUS.md) and the newest entry in
 (`node tools/case-vectors.cjs`, then `dotnet run --project tools/core-tests`).
 Run `dotnet build tools/unity-compile-check` before committing Unity scripts.
 
+Claude Code users: read [CLAUDE.md](../CLAUDE.md) and [CLAUDE_CODE_PROMPTS.md](CLAUDE_CODE_PROMPTS.md).
+
 Paste this into a new chat:
 
 > Read PLAN.md, STATUS.md and LOG.md on the redesign/find-the-one branch of

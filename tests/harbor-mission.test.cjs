@@ -48,7 +48,8 @@ test('mission uses a separate valid scene but preserves the old crowd review', (
   assert.match(review, /mission && mission\.IsRunning/);
   assert.match(review, /if \(\(missionMode \|\| droneMode\) && error == null\) return;/);
   const scenes = [...build.matchAll(/path: (Assets\/Scenes\/[^\n]+)/g)].map(x=>x[1]);
-  assert.deepEqual(scenes.slice(0,3),
+  assert.equal(scenes[0], 'Assets/Scenes/FindTheOne.unity');   // the product scene is first
+  assert.deepEqual(scenes.slice(1,4),
     ['Assets/Scenes/HarborMission.unity',
      'Assets/Scenes/WalkReview.unity',
      'Assets/Scenes/HarborCrowd.unity']);

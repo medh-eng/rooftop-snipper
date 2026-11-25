@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Scenes/FindTheOne.unity
+    guid: d094cb42af9f4d67b061beecf17ceec8
+  - enabled: 1
     path: Assets/Scenes/HarborMission.unity
     guid: e0c148431ad944be88ef3a342ad424ae
   - enabled: 1
@@ -17,9 +20,6 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/HarborDrone.unity
     guid: 81205d3c6aef42c68bc6a5efd8151144
-  - enabled: 1
-    path: Assets/Scenes/FindTheOne.unity
-    guid: d094cb42af9f4d67b061beecf17ceec8
   - enabled: 0
     path: Assets/Scenes/SampleScene.unity
     guid: 99c9720ab356a0642a771bea13969a05
