@@ -8,7 +8,7 @@ Plan: [PLAN.md](PLAN.md) · History: [LOG.md](LOG.md)
 | Part | State | Verified how |
 |---|---|---|
 | Shared case engine (JS) `game/case-engine.js` | ✅ Done | 11 Node tests: one courier for 400 seeds × 12 cases and 366 daily cases |
-| Browser prototype `game/` | ✅ Playable | Headless Chrome play-throughs at phone (390×844, touch) and desktop size, 3 automated browser tests |
+| Browser prototype `game/` | ✅ Playable | Headless Chrome play-throughs at phone (390×844, touch) and desktop size, 4 automated browser tests |
 | Case engine (C#) `Core/CaseEngine.cs` | ✅ Done | 6 EditMode tests pass outside Unity; output matches JS bit for bit (`game/vectors.json`) |
 | Unity Find the One mode (`FindTheOne.unity`, `CaseCrowd`, `FindTheOneController`) | 🟡 Written, **not yet run in Unity** | Compiles against Unity API stand-ins (`tools/unity-compile-check`). Needs your first Play session |
 | ChatGPT's existing Unity scenes | 🟢 Compile errors fixed | 4 errors would have blocked Play mode (see LOG). All 42 of its Node tests still pass |
@@ -37,6 +37,8 @@ Plan: [PLAN.md](PLAN.md) · History: [LOG.md](LOG.md)
 * **Saves:** best stars and score per case, daily results and streak (browser `localStorage`, Unity `PlayerPrefs`).
 
 ## Needs checking on first Unity run (I could not run Unity here)
+* **Walking smoothness (25 Nov):** crowd-spacing speeds are now low-passed. Watch people in a dense group: no stop-start stutter, no sliding feet.
+* **Repo cleanup (25 Nov):** old Harbor Watch phase scenes are still there on purpose. If Unity shows missing-script warnings after the pull, tell Claude Code (prompt 2).
 
 | Item | Where | What to look for |
 |---|---|---|

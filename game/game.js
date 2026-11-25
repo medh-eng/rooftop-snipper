@@ -141,7 +141,7 @@
     const kase = E.generate(seed, cfg);
     const district = E.DISTRICTS[cfg.district];
     const people = kase.people.map(p => Object.assign({}, p, {
-      wx: p.x, wy: p.y * H, facing: p.dir, step: Math.random() * 6, moving: true,
+      wx: p.x, wy: p.y * H, facing: p.dir, fx: p.dir, v: PACE[p.pace] * p.jitter, step: Math.random() * 6, moving: true,
       size: 58 + (p.y - .6) * 260, mark: false, wrong: false, react: 0, ear: 0, phone: 0
     }));
     game = {
@@ -207,12 +207,18 @@
       } else p.react = 0;
       if (pingActive && p.cell) { speed = 0; p.ear = 1; }
       if (p.wrong) speed *= .3;
+      // Gentle ramps instead of instant stops and starts (startled people brake a little harder).
+      const brake = (noiseActive && !p.calm) || (pingActive && p.cell) ? 320 : 200;
+      p.v = p.v + clamp(speed - p.v, -brake * dt, 90 * dt);
+      speed = p.v;
       p.wx += speed * p.dir * dt;
       if (p.wx > W + 70) { p.dir = -1; p.wx = W + 70; }
       if (p.wx < -70) { p.dir = 1; p.wx = -70; }
       p.moving = speed > 1;
       if (p.moving) p.step += dt * speed * .12;
       p.facing = facing;
+      // The drawn side turns over about a quarter of a second instead of flipping in one frame.
+      p.fx += clamp(facing - p.fx, -7 * dt, 7 * dt);
     }
   }
 
@@ -317,7 +323,7 @@
     const last = g.echoLog[g.echoLog.length - 1], from = Math.max(g.echoLog[0].t, last.t - ECHO_WINDOW);
     g.echo = {
       from, to: last.t, head: from, speed: 1, liveT: g.t,
-      live: g.people.map(p => ({ wx: p.wx, facing: p.facing, step: p.step, moving: p.moving, phone: p.phone, ear: p.ear, react: p.react, dir: p.dir }))
+      live: g.people.map(p => ({ wx: p.wx, facing: p.facing, fx: p.fx, v: p.v, step: p.step, moving: p.moving, phone: p.phone, ear: p.ear, react: p.react, dir: p.dir }))
     };
     audio.rewind(); toast('Echo: last ' + Math.round(last.t - from) + ' s of the crowd. Drag and zoom to study it', 'good');
     applyEcho(from); hud();
@@ -329,7 +335,7 @@
     g.people.forEach((p, n) => {
       const A = a.p[n], B = b.p[n], src = k < .5 ? A : B;
       p.wx = lerp(A[0], B[0], k); p.step = lerp(A[2], B[2], k);
-      p.facing = src[1]; p.moving = !!src[3]; p.phone = src[4]; p.ear = src[5]; p.react = src[6]; p.dir = src[7];
+      p.facing = p.fx = src[1]; p.moving = !!src[3]; p.phone = src[4]; p.ear = src[5]; p.react = src[6]; p.dir = src[7];
     });
     g.t = t;   // blinks and reaction fades are drawn from this clock
   }
@@ -655,7 +661,7 @@
     ctx.beginPath(); ctx.ellipse(e.x, e.y + 1, vwid * .42, h * .055, 0, 0, Math.PI * 2); ctx.fill();
     ctx.save();
     ctx.translate(e.x, e.y - bob);
-    ctx.scale(p.facing, 1);
+    ctx.scale(Math.abs(p.fx) < .12 ? (p.fx < 0 ? -.12 : .12) : p.fx, 1);
     const left = -vwid / 2, top = -h;
     const hx = left + a.cx * vwid, hw = a.hw * h;
     // backpack behind the body

@@ -41,3 +41,12 @@ Use the chat for design ideas and the browser prototype; use Claude Code for any
 ## 6. Close a session
 > Run every check in CLAUDE.md, update STATUS.md and LOG.md (added, fixed, verified, NOT verified, next), commit and
 > push to redesign/find-the-one, then give me a five-line summary in plain words.
+
+## 7. Use my new pedestrian model (Tripo + Mixamo)
+> Read CLAUDE.md, docs/PEDESTRIAN_MODEL_GUIDE.md and FindTheOne/CaseCrowd.cs. I put a Mixamo-rigged model and
+> its walk and jog FBX files in Assets/HarborWatch/Incoming/. Make the crowd use them: import them with the right
+> settings (add the files to the importer script, using a Humanoid or Generic rig, whichever keeps the planted-foot
+> walk and jog working), map the Mixamo bone names (mixamorig:Hips, Head, arms) to what CaseCrowd looks for, and keep
+> the phone, briefcase, headphones, beanie and head-turn logic working. Keep the old Blender walker as a fallback
+> until I confirm the new one looks right. Run every check, add a PlayMode test that loads the new model, and tell me
+> in plain words what I should look at on screen (feet sliding, arm positions, size against the buildings).

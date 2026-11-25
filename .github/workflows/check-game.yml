@@ -19,8 +19,6 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/signal-browser" --no-audit --no-fund playwright@1.56.1
           node "$RUNNER_TEMP/signal-browser/node_modules/playwright/cli.js" install --with-deps chromium
-      - name: Play the campaign and verify touch controls
-        run: NODE_PATH="$RUNNER_TEMP/signal-browser/node_modules" node --test tests/campaign-browser.cjs
       - name: Play Find the One (phone touch, wrong tags, daily case)
         run: NODE_PATH="$RUNNER_TEMP/signal-browser/node_modules" node --test tests/find-the-one-browser.cjs
   unity-csharp:

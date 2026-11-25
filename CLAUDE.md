@@ -22,7 +22,7 @@ Work on branch `redesign/find-the-one`. `main` is an older browser game; do not 
 
 ## Checks to run before every commit
 ```
-node --test tests/*.test.cjs                      # rules, 53 tests
+node --test tests/*.test.cjs                      # rules, 44 tests
 dotnet run --project tools/core-tests             # C# rules, 6 tests
 dotnet build tools/unity-compile-check            # compiles Unity scripts against stand-ins
 node tools/route-check.cjs                        # crowd routes clear every solid object

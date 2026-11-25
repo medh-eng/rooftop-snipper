@@ -123,3 +123,21 @@ Pon reported that in Unity the game did not start and case 4 could not be seen. 
 Verified: compile check, core tests 6/6, JS tests 53/53 (two older scene-order tests updated: Find the One is now first in Build Settings), browser tests 4/4. Not verified: anything in Unity, including the new PlayMode tests.
 
 Next: Pon runs prompt 1 of `docs/CLAUDE_CODE_PROMPTS.md` in Claude Code on the PC (pull the branch first).
+
+## 2026-11-25 (later): repo cleanup, smoother walking, pedestrian model guide
+### Removed
+* The old marked-target browser game: root `index.html`, `style.css`, `src/`, its two tests (`campaign.test.cjs`, `campaign-browser.cjs`), the two offline build scripts and the CI step that ran them.
+* Unused art (aircraft, gun, lens, cartridge, round, two air scenes), old phase docs (`docs/harbor-watch/`, `UNITY_HARBOR_WATCH_PLAN.md`), the Unity template junk (`TutorialInfo`, `Readme.asset`, `SampleScene` and its Build Settings entry).
+* Generated Unity cache from the stray `unity/` project (commit eb00f5c) and rewrote `README.md` and `docs/START_HERE_NEW_CHAT.md`.
+* Kept on purpose: the other Harbor scenes and scripts (mission, drone, relay, album) and their tests. `FindTheOneController` and `CaseCrowd` still depend on `HarborCrowdReview`, `HarborMissionController` and `HarborCrowdTraffic`, and removing them cannot be checked without Unity.
+### Smoother walking
+* Browser (`game/game.js`): people now ramp their speed (90 px/s^2 up, 200 down, 320 when startled) instead of changing speed in one frame, and the drawn side turns over about 0.25 s instead of flipping.
+* Unity (`CaseCrowd.Step`): the crowd-spacing speed is low-passed (about 0.25 s) so close neighbours do not cause stop-start stutter. Heading, route curves and the gait phase were already smooth.
+### Docs
+* `docs/PEDESTRIAN_MODEL_GUIDE.md` (ChatGPT image prompts, Tripo settings, Mixamo settings, where to put files) and prompt 7 in `docs/CLAUDE_CODE_PROMPTS.md`.
+### Verified
+JS tests 44/44 (was 53; the 9 removed tests belonged to the old game), core tests 6/6, compile check 0 errors, route check ok, browser play-through 4/4.
+### NOT verified
+Nothing run in Unity. The smoother walking in Unity is untested by eye. The Mixamo model is not integrated: its bone names differ from the current rig.
+### Next
+Pon makes the model and sends the files (guide above), then Claude Code prompt 7. Pon checks in Unity that the walking looks smoother.

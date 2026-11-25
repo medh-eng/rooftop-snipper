@@ -464,7 +464,9 @@ namespace HarborWatch
                         a.Anchor.position, forward, nominal, i,
                         b.Anchor.position, b.Route.Forward(b.Distance), b.CurrentSpeed, j));
                 }
-                planned[i] = nominal * factor;
+                // Low-pass the crowd-spacing answer so a neighbour drifting in and out of range
+                // does not make someone stutter between slowing and speeding up.
+                planned[i] = Mathf.Lerp(planned[i], nominal * factor, 1f - Mathf.Exp(-4f * dt));
             }
 
             for (int i = 0; i < Walkers.Count; i++)
@@ -559,6 +561,8 @@ namespace HarborWatch
             w.Anchor.position = start;
             w.Anchor.rotation = Quaternion.Euler(0f, w.Yaw, 0f);
             w.CurrentSpeed = NominalSpeed(w) * .85f;
+            int slot = Walkers.IndexOf(w);
+            if (slot >= 0 && slot < planned.Length) planned[slot] = NominalSpeed(w);
             w.Settled = false;
             Pose(w, 0f, false, false, false, 0f);
         }
