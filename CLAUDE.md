@@ -10,7 +10,7 @@ you could not run, and never claim something works in Unity unless you actually 
 2. `PLAN.md` (design rules and phases)
 3. the newest entry of `LOG.md` (and its "Next" list)
 
-Work on branch `redesign/find-the-one`. `main` is an older browser game; do not build on it.
+Work on branch `redesign/find-the-one`; it was merged into `main` on 25 Nov 2026, so `main` is now this game too (GitHub Pages serves the root `index.html`, which opens `game/`). Keep both branches in step by pushing to both.
 
 ## Rules that must not drift
 * Game rules live in `game/case-engine.js` and are mirrored in
